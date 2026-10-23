@@ -287,7 +287,7 @@
         const aiResponse = await fetch('/api/describe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ocrText: fullOcrText.substring(0, 20000) })
+          body: JSON.stringify({ ocrText: fullOcrText.substring(0, 8000) })
         });
 
         if (!aiResponse.ok) {
