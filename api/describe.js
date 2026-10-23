@@ -26,7 +26,7 @@ export default async function handler(req) {
       });
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const prompt = `You are an expert data extraction assistant. Format the following raw OCR text from a Proforma Invoice into a specific plain text format. 
