@@ -1,133 +1,328 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PI OCR &amp; Description Tool</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 16px system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-  button, #dl { padding: .5rem 1.25rem; }
-  #dl { display: inline-block; border: 1px solid currentColor; border-radius: 4px; text-decoration: none; color: inherit; }
-  textarea { width: 100%; height: 14rem; font-family: monospace; box-sizing: border-box; }
-  #pdf { width: 100%; height: 75vh; border: 1px solid #8886; }
-  #status { margin: 1rem 0; opacity: .75; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proforma Invoice OCR Extractor</title>
+  <!-- Custom Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --secondary: #10B981;
+      --bg-gradient: linear-gradient(135deg, #F3F4F6 0%, #E0E7FF 100%);
+      --text-main: #1F2937;
+      --text-muted: #6B7280;
+    }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.15);
+      padding: 32px;
+    }
+    h1 {
+      color: var(--primary);
+      text-align: center;
+      font-weight: 700;
+      font-size: 2rem;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .page-description {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .upload-area {
+      border: 2px dashed #C7D2FE;
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      background: #F9FAFB;
+      margin-bottom: 20px;
+      transition: border-color 0.3s;
+    }
+    .upload-area:hover {
+      border-color: var(--primary);
+    }
+    .btn {
+      background: linear-gradient(90deg, var(--primary), #7C3AED);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 12px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+    }
+    .btn:disabled {
+      background: #D1D5DB;
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .disclaimer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #DC2626;
+      font-weight: 600;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .result-section {
+      margin-top: 32px;
+      display: none;
+    }
+    .result-section.active {
+      display: block;
+    }
+    .box {
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    iframe {
+      width: 100%;
+      height: 500px;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 2px solid #E5E7EB;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .footer strong {
+      color: var(--text-main);
+    }
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    .status {
+      text-align: center;
+      color: var(--primary);
+      font-weight: 500;
+      margin: 12px 0;
+      min-height: 24px;
+    }
+  </style>
 </head>
 <body>
-<h1>PI OCR &amp; Product Description</h1>
-<p>Upload a Proforma Invoice (PDF or image, Bangla or English). You get a searchable, copyable PDF and the item lines in your format. OCR runs in your browser; only the extracted text is sent to the AI.</p>
+  <div class="container">
+    <h1>Proforma Invoice OCR Extractor</h1>
+    <p class="page-description">
+      Upload your Proforma Invoice (PDF or image, in Bangla or English). 
+      This tool extracts the text directly in your browser and uses AI to format 
+      the item lines into a clean, standardized, copyable text block.
+    </p>
 
-<input id="files" type="file" multiple accept=".pdf,image/*">
-<button id="go">Process PI</button>
-<div id="status"></div>
-<textarea id="out" readonly placeholder="Formatted item lines appear here"></textarea>
-<p><a id="dl" hidden>Download searchable PDF</a></p>
-<!-- shortcut: uses the browser's built-in PDF viewer (select/copy works); phones may not render it, upgrade to a pdf.js text layer if mobile matters -->
-<iframe id="pdf" title="OCR'd PI" hidden></iframe>
-<details><summary>Extracted text</summary><textarea id="txt" readonly></textarea></details>
+    <div class="upload-area">
+      <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" multiple />
+      <br />
+      <button id="processBtn" class="btn">Process PI</button>
+      <div class="disclaimer">🔒 No data is stored in the server.</div>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script src="format.js"></script>
-<script src="enhance.js"></script>
-<script>
-const MAX_PAGES = 30; // shortcut: browser memory limit, raise if your PIs are longer and your PC copes
-const $ = (id) => document.getElementById(id);
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    <div id="status" class="status"></div>
 
-// Same settings as the notebook.
-const LONG_MAX = 2200, LONG_MIN = 1650, CONTRAST = 1.3, JPEG_QUALITY = 0.85;
+    <div id="resultSection" class="result-section">
+      <h3>Extracted Text (Reliable for copying)</h3>
+      <div id="extractedText" class="box"></div>
+      
+      <h3>Formatted Item Lines</h3>
+      <div id="formattedText" class="box"></div>
 
-// Resize so the long side is within [LONG_MIN, LONG_MAX], grayscale + contrast, re-encode as JPEG.
-async function prep(source) {
-  const bmp = source instanceof Blob ? await createImageBitmap(source) : source;
-  const long = Math.max(bmp.width, bmp.height);
-  const k = long > LONG_MAX ? LONG_MAX / long : long < LONG_MIN ? LONG_MIN / long : 1;
-  const c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * k);
-  c.height = Math.round(bmp.height * k);
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.imageSmoothingQuality = 'high';
-  ctx.fillStyle = '#fff'; // transparent PNGs would otherwise turn black
-  ctx.fillRect(0, 0, c.width, c.height);
-  ctx.drawImage(bmp, 0, 0, c.width, c.height);
-  const img = ctx.getImageData(0, 0, c.width, c.height);
-  enhance(img.data, CONTRAST);
-  ctx.putImageData(img, 0, 0);
-  return new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
-}
+      <h3>PDF Preview</h3>
+      <iframe id="pdfViewer"></iframe>
+      <br />
+      <button id="downloadBtn" class="btn">Download Searchable PDF</button>
+    </div>
 
-// Yields one image-like input per page: a canvas for PDF pages, the file itself for images.
-async function* pagesOf(file) {
-  if (!/\.pdf$/i.test(file.name)) { yield file; return; }
-  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  for (let n = 1; n <= pdf.numPages; n++) {
-    const page = await pdf.getPage(n);
-    const viewport = page.getViewport({ scale: 200 / 72 }); // 200 DPI, as in the notebook
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    yield canvas;
-  }
-}
+    <div class="footer">
+      <strong>About Us</strong><br />
+      This tool is designed to simplify Proforma Invoice data extraction for trade and banking professionals, 
+      ensuring fast, accurate, and privacy-focused document processing.<br /><br />
+      <strong>Developer:</strong> Pronabesh Bhowmik, CDCS<br />
+      <strong>Email:</strong> <a href="mailto:pbsbd@yahoo.com">pbsbd@yahoo.com</a>
+    </div>
+  </div>
 
-$('go').onclick = async () => {
-  const files = [...$('files').files];
-  if (!files.length) return;
-  $('go').disabled = true;
-  $('out').value = '';
-  $('txt').value = '';
-  $('dl').hidden = true;
-  $('pdf').hidden = true;
-  const parts = [], texts = [];
-  let worker;
-  try {
-    $('status').textContent = 'Loading OCR engine (first run downloads Bangla + English data)...';
-    worker = await Tesseract.createWorker('ben+eng');
-    let n = 0;
-    for (const f of files) {
-      for await (const page of pagesOf(f)) {
-        if (++n > MAX_PAGES) throw new Error(`Over the ${MAX_PAGES}-page limit`);
-        $('status').textContent = `OCR page ${n}...`;
-        const { data } = await worker.recognize(await prep(page), { pdfTitle: 'PI' }, { pdf: true });
-        parts.push(new Uint8Array(data.pdf));
-        texts.push(data.text);
+  <!-- Local scripts (keep your existing enhance.js and format.js) -->
+  <script src="enhance.js"></script>
+  <script src="format.js"></script>
+
+  <script>
+    // Set PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+    const status = document.getElementById('status');
+    const resultSection = document.getElementById('resultSection');
+    const extractedTextEl = document.getElementById('extractedText');
+    const formattedTextEl = document.getElementById('formattedText');
+    const pdfViewer = document.getElementById('pdfViewer');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let searchablePdfBlob = null;
+
+    processBtn.addEventListener('click', async () => {
+      const files = Array.from(fileInput.files);
+      if (files.length === 0) {
+        status.textContent = 'Please select at least one file.';
+        return;
       }
-    }
+      if (files.length > 30) {
+        status.textContent = 'Maximum 30 pages/files allowed.';
+        return;
+      }
 
-    const merged = await PDFLib.PDFDocument.create();
-    for (const bytes of parts) {
-      const doc = await PDFLib.PDFDocument.load(bytes);
-      (await merged.copyPages(doc, doc.getPageIndices())).forEach((p) => merged.addPage(p));
-    }
-    const url = URL.createObjectURL(new Blob([await merged.save()], { type: 'application/pdf' }));
-    $('dl').href = url;
-    $('dl').download = 'pi_searchable.pdf';
-    $('dl').hidden = false;
-    $('pdf').src = url;
-    $('pdf').hidden = false;
-    $('txt').value = texts.join('\n\n');
+      processBtn.disabled = true;
+      status.textContent = 'Processing OCR in browser... (this may take a moment)';
+      resultSection.classList.remove('active');
 
-    $('status').textContent = 'Asking AI...';
-    const r = await fetch('/api/describe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: texts.join('\n\n') }),
+      try {
+        let fullOcrText = '';
+        const pdfDoc = await PDFLib.PDFDocument.create();
+
+        for (const file of files) {
+          if (file.type === 'application/pdf') {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+              status.textContent = `Processing PDF page ${i} of ${pdf.numPages}...`;
+              const page = await pdf.getPage(i);
+              const viewport = page.getViewport({ scale: 2.0 }); // ~200 DPI
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+
+              await page.render({ canvasContext: context, viewport }).promise;
+              
+              // Enhance image (assumes enhance.js exports enhanceImage)
+              const enhancedDataUrl = enhanceImage(canvas); 
+              const { data: { text } } = await Tesseract.recognize(enhancedDataUrl, 'ben+eng');
+              fullOcrText += text + '\n';
+
+              // Add to searchable PDF
+              const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
+              const img = await pdfDoc.embedJpg(imgBytes);
+              const newPage = pdfDoc.addPage([viewport.width, viewport.height]);
+              newPage.drawImage(img, { x: 0, y: 0, width: viewport.width, height: viewport.height });
+            }
+          } else {
+            status.textContent = `Processing image: ${file.name}...`;
+            const imgBitmap = await createImageBitmap(file);
+            const canvas = document.createElement('canvas');
+            // Clamp long side to 1650-2200px (handled inside enhance.js or here)
+            const scale = Math.min(2000 / Math.max(imgBitmap.width, imgBitmap.height), 1);
+            canvas.width = imgBitmap.width * scale;
+            canvas.height = imgBitmap.height * scale;
+            const context = canvas.getContext('2d');
+            context.drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
+            
+            const enhancedDataUrl = enhanceImage(canvas);
+            const { data: { text } } = await Tesseract.recognize(enhancedDataUrl, 'ben+eng');
+            fullOcrText += text + '\n';
+
+            const imgBytes = await file.arrayBuffer();
+            const img = await pdfDoc.embedJpg(imgBytes); // Simplified for images
+            const newPage = pdfDoc.addPage([img.width, img.height]);
+            newPage.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+          }
+        }
+
+        status.textContent = 'Sending OCR text to AI for formatting...';
+        extractedTextEl.textContent = fullOcrText;
+
+        // Send RAW OCR text to AI, not pre-extracted data
+        const aiResponse = await fetch('/api/describe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ocrText: fullOcrText.substring(0, 20000) })
+        });
+
+        if (!aiResponse.ok) {
+          const err = await aiResponse.text();
+          throw new Error(`AI API failed: ${aiResponse.status} - ${err}`);
+        }
+
+        const aiData = await aiResponse.json();
+        // Assumes format.js exports formatOutput to clean up AI response
+        formattedTextEl.textContent = formatOutput(aiData.text || aiData.choices?.[0]?.message?.content || 'No formatted output returned.');
+
+        searchablePdfBlob = await pdfDoc.save();
+        const pdfUrl = URL.createObjectURL(searchablePdfBlob);
+        pdfViewer.src = pdfUrl;
+
+        resultSection.classList.add('active');
+        status.textContent = 'Processing complete!';
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Error: ' + err.message;
+      } finally {
+        processBtn.disabled = false;
+      }
     });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'AI step failed');
-    $('out').value = j.items?.length ? formatItems(j.items) : 'No line items found in this PI.';
-    $('status').textContent = 'Done.';
-  } catch (e) {
-    $('status').textContent = 'Error: ' + e.message + (parts.length ? ' (the searchable PDF above is still usable)' : '');
-  } finally {
-    if (worker) await worker.terminate();
-    $('go').disabled = false;
-  }
-};
-</script>
+
+    downloadBtn.addEventListener('click', () => {
+      if (searchablePdfBlob) {
+        const url = URL.createObjectURL(searchablePdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'searchable_pi.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    });
+  </script>
 </body>
 </html>
