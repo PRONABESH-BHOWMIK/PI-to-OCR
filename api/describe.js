@@ -29,7 +29,9 @@ export default async function handler(req) {
     const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const prompt = `You are an expert data extraction assistant. Format the following raw OCR text from a Proforma Invoice into a specific plain text format. 
+    const prompt = `Format this PI OCR text. Rules: 1 block per item, plain numbering, comma separated. Max 60 chars per line. Missing = N/A. Example: 1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS, H.S. CODE : 5208.39.00. Output ONLY the formatted text. No markdown, no intro.
+Raw OCR:
+${ocrText}`;
 
 Rules:
 - One block per item, plain numbering, comma separated.
