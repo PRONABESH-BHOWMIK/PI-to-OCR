@@ -1,6 +1,6 @@
 // api/describe.js
 export const config = {
-  runtime: 'edge', // or 'nodejs' depending on your Vercel setup
+  runtime: 'edge',
 };
 
 export default async function handler(req) {
@@ -18,16 +18,16 @@ export default async function handler(req) {
       });
     }
 
-    const apiKey = process.env.DASHSCOPE_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'DASHSCOPE_API_KEY is not configured' }), { 
+      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not configured in Vercel' }), { 
         status: 500, 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
 
-    const baseUrl = process.env.QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
-    const model = process.env.QWEN_MODEL || 'qwen-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const prompt = `You are an expert data extraction assistant. Format the following raw OCR text from a Proforma Invoice into a specific plain text format. 
 
@@ -43,33 +43,39 @@ H.S. CODE : 5208.39.00.
 Raw OCR Text:
 ${ocrText}`;
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: 'system', content: 'You are a precise data formatting assistant. Output only the requested plain text format.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 1500
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1500
+        }
       })
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      return new Response(JSON.stringify({ error: `Provider error: ${response.status}`, details: errorText }), { 
+      const errorData = await response.json().catch(() => ({}));
+      return new Response(JSON.stringify({ 
+        error: `Gemini API failed: ${response.status}`, 
+        details: errorData.error?.message || 'Unknown error' 
+      }), { 
         status: response.status, 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
 
     const data = await response.json();
-    return new Response(JSON.stringify(data), { 
+    const formattedText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No formatted output returned.';
+    
+    return new Response(JSON.stringify({ text: formattedText }), { 
       status: 200, 
       headers: { 'Content-Type': 'application/json' } 
     });
