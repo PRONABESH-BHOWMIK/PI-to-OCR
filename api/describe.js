@@ -18,55 +18,39 @@ export default async function handler(req) {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not configured in Vercel' }), { 
+      return new Response(JSON.stringify({ error: 'GROQ_API_KEY is not configured in Vercel' }), { 
         status: 500, 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
     const prompt = `Format this PI OCR text. Rules: 1 block per item, plain numbering, comma separated. Max 60 chars per line. Missing = N/A. Example: 1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS, H.S. CODE : 5208.39.00. Output ONLY the formatted text. No markdown, no intro.
+
 Raw OCR:
 ${ocrText}`;
 
-Rules:
-- One block per item, plain numbering, comma separated.
-- No line longer than 60 characters.
-- Missing values must be shown as N/A.
-- Example format: 
-1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS,
-H.S. CODE : 5208.39.00.
-- Output ONLY the formatted text. No markdown, no introductory conversation, no JSON wrappers.
-
-Raw OCR Text:
-${ocrText}`;
-
-    const response = await fetch(url, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 1500
-        }
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 1024
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       return new Response(JSON.stringify({ 
-        error: `Gemini API failed: ${response.status}`, 
+        error: `Groq API failed: ${response.status}`, 
         details: errorData.error?.message || 'Unknown error' 
       }), { 
         status: response.status, 
@@ -75,7 +59,7 @@ ${ocrText}`;
     }
 
     const data = await response.json();
-    const formattedText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No formatted output returned.';
+    const formattedText = data.choices?.[0]?.message?.content || 'No formatted output returned.';
     
     return new Response(JSON.stringify({ text: formattedText }), { 
       status: 200, 
