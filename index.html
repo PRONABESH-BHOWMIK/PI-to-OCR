@@ -85,6 +85,15 @@
       cursor: not-allowed;
       transform: none;
     }
+    .btn.small {
+      padding: 9px 20px;
+      font-size: 0.9rem;
+      margin: 0 8px 16px 0;
+    }
+    .btn.green {
+      background: linear-gradient(90deg, #059669, #10B981);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
     .disclaimer {
       text-align: center;
       font-size: 0.85rem;
@@ -173,6 +182,12 @@
     <div id="resultSection" class="result-section">
       <h3>Formatted Item Lines</h3>
       <div id="formattedText" class="box"></div>
+      <button id="copyItemsBtn" class="btn small green">Copy Text</button>
+      <button id="regenBtn" class="btn small">Re-generate</button>
+
+      <h3>Formatted Beneficiary Info</h3>
+      <div id="beneficiaryText" class="box"></div>
+      <button id="copyBenBtn" class="btn small green">Copy Text</button>
 
       <h3>Searchable PDF (select and copy text from here)</h3>
       <iframe id="pdfViewer" title="Searchable PDF"></iframe>
@@ -209,10 +224,58 @@
     const resultSection = document.getElementById('resultSection');
     const extractedTextEl = document.getElementById('extractedText');
     const formattedTextEl = document.getElementById('formattedText');
+    const beneficiaryTextEl = document.getElementById('beneficiaryText');
+    const regenBtn = document.getElementById('regenBtn');
     const pdfViewer = document.getElementById('pdfViewer');
     const downloadBtn = document.getElementById('downloadBtn');
 
     let searchablePdfBlob = null;
+    let lastOcrText = '';
+
+    // Sends the OCR text for data compilation and fills the item lines and beneficiary boxes.
+    // retry=true is a Re-generate: if it fails, the previous result stays on screen.
+    async function compile(ocrText, retry) {
+      status.textContent = 'Processing for data compilation...';
+      regenBtn.disabled = true;
+      try {
+        const res = await fetch('/api/describe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ocrText: ocrText.substring(0, AI_CHAR_LIMIT), retry })
+        });
+        if (!res.ok) throw new Error(`Data compilation failed: ${res.status} - ${await res.text()}`);
+        const data = await res.json();
+        formattedTextEl.textContent = data.items && data.items.length ? formatItems(data.items) : 'No item lines found.';
+        beneficiaryTextEl.textContent = formatBeneficiary(data.beneficiary);
+        status.textContent = 'Processing complete!';
+      } catch (err) {
+        console.error(err);
+        if (!retry) formattedTextEl.textContent = 'Data compilation failed, but the searchable PDF and extracted text below are ready.\n' + err.message;
+        status.textContent = retry ? 'Re-generate failed; the previous result is kept. ' + err.message : 'Searchable PDF ready; data compilation failed.';
+      } finally {
+        regenBtn.disabled = false;
+      }
+    }
+
+    async function copyText(el, btn) {
+      try {
+        await navigator.clipboard.writeText(el.textContent);
+      } catch {
+        const t = document.createElement('textarea'); // fallback for browsers that block the clipboard API
+        t.value = el.textContent;
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand('copy');
+        t.remove();
+      }
+      const label = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = label; }, 1500);
+    }
+
+    regenBtn.addEventListener('click', () => compile(lastOcrText, true));
+    document.getElementById('copyItemsBtn').addEventListener('click', (e) => copyText(formattedTextEl, e.currentTarget));
+    document.getElementById('copyBenBtn').addEventListener('click', (e) => copyText(beneficiaryTextEl, e.currentTarget));
 
     processBtn.addEventListener('click', async () => {
       const files = Array.from(fileInput.files);
@@ -287,24 +350,9 @@
         formattedTextEl.textContent = '';
         resultSection.classList.add('active');
 
-        status.textContent = 'Sending OCR text to AI for formatting...';
-        try {
-          const aiResponse = await fetch('/api/describe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ocrText: fullOcrText.substring(0, AI_CHAR_LIMIT) })
-          });
-          if (!aiResponse.ok) {
-            throw new Error(`AI API failed: ${aiResponse.status} - ${await aiResponse.text()}`);
-          }
-          const aiData = await aiResponse.json();
-          formattedTextEl.textContent = formatOutput(aiData.text || aiData.choices?.[0]?.message?.content || 'No formatted output returned.');
-          status.textContent = 'Processing complete!';
-        } catch (aiErr) {
-          console.error(aiErr);
-          formattedTextEl.textContent = 'The AI step failed, but the searchable PDF and extracted text below are ready.\n' + aiErr.message;
-          status.textContent = 'Searchable PDF ready; AI step failed.';
-        }
+        lastOcrText = fullOcrText;
+        beneficiaryTextEl.textContent = '';
+        await compile(fullOcrText, false);
       } catch (err) {
         console.error(err);
         status.textContent = 'Error: ' + err.message;

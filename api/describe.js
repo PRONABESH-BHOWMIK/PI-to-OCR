@@ -5,9 +5,13 @@
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
+// Your own corrections go here: extra rules for mistakes the AI keeps making, plus 2-3 short worked
+// examples (OCR text -> the correct JSON). Every request pays for this text, so keep it short.
+const EXTRA_RULES = '';
+
 export async function POST(request) {
   try {
-    const { ocrText } = await request.json();
+    const { ocrText, retry } = await request.json();
     if (!ocrText || typeof ocrText !== 'string') {
       return json({ error: 'Missing or invalid ocrText' }, 400);
     }
@@ -20,7 +24,18 @@ export async function POST(request) {
     // llama-3.3-70b-versatile was shut down by Groq on 2026-08-16; this is Groq's recommended replacement
     const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 
-    const prompt = `Format this PI OCR text. Rules: 1 block per item, plain numbering, comma separated. Max 60 chars per line. Missing = N/A. Example: 1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS, H.S. CODE : 5208.39.00. Output ONLY the formatted text. No markdown, no intro.
+    const prompt = `You read the OCR text of a Proforma Invoice (PI). The text may contain recognition errors and mixed Bangla/English. Return ONLY a JSON object, no markdown fences and no commentary, in exactly this shape:
+
+{"beneficiary":{"name":"...","address":"..."},"items":[{"item_name":"...","quantity":"...","uom":"...","currency":"...","unit_price":"...","hs_code":"..."}]}
+
+Rules:
+- beneficiary is the seller / exporter / shipper who issued the PI. name = the company name only. address = the full postal address (street, city, postal code, country) as one string. Leave out phone, fax, email and website.
+- items has one entry per product line, in the PI's order. item_name = the item name only, as written in the PI (no quantity, price or H.S. code).
+- quantity = the number only. uom = the unit of measure as written in the PI (YDS, PCS, KG, MTR, SET...). currency = the currency code (USD, EUR...). unit_price = the number only, the price for one unit.
+- hs_code = the H.S. code printed in the PI for that item.
+- Copy numbers and codes exactly as printed. Use null for anything that is not in the text. Do not guess.
+${EXTRA_RULES}
+${retry ? 'Your previous answer was rejected by the user. Re-read the text carefully and correct any mistakes.' : ''}
 
 Raw OCR:
 ${ocrText}`;
@@ -34,7 +49,7 @@ ${ocrText}`;
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
+        temperature: retry ? 0.5 : 0.1, // a re-generate should not just repeat the same answer
         max_tokens: 2048,
         // gpt-oss thinks before answering and thinking tokens count against max_tokens; keep it short
         ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {})
@@ -52,7 +67,17 @@ ${ocrText}`;
     }
 
     const data = await response.json();
-    return json({ text: data.choices?.[0]?.message?.content || 'No formatted output returned.' });
+    const raw = data.choices?.[0]?.message?.content || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)); // tolerates stray text or fences
+    } catch {
+      return json({ error: 'Could not read the reply as data', details: raw.slice(0, 200) }, 502);
+    }
+    return json({
+      beneficiary: parsed.beneficiary || null,
+      items: Array.isArray(parsed.items) ? parsed.items : []
+    });
   } catch (error) {
     if (error.name === 'TimeoutError') {
       return json({ error: 'Groq did not answer within 8 seconds' }, 504);
