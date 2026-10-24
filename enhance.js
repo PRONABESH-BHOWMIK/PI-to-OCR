@@ -4,8 +4,8 @@ function enhanceImage(canvas) {
   const width = canvas.width;
   const height = canvas.height;
   
-  // Clamp long side to 2000 px for optimal OCR
-  const maxSide = 2000;
+  // Clamp long side to 2400 px (A4 at 200 DPI is 2339 px long, so 200 DPI pages are kept as they are)
+  const maxSide = 2400;
   const scale = Math.min(maxSide / Math.max(width, height), 1);
   
   if (scale < 1) {

@@ -85,6 +85,22 @@
       cursor: not-allowed;
       transform: none;
     }
+    .lang-row {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+    .lang-row select {
+      font-family: inherit;
+      font-size: 0.95rem;
+      margin-left: 8px;
+      padding: 8px 14px;
+      border: 1px solid #C7D2FE;
+      border-radius: 9999px;
+      background: #FFFFFF;
+      color: var(--text-main);
+    }
     .btn.small {
       padding: 9px 20px;
       font-size: 0.9rem;
@@ -172,6 +188,13 @@
 
     <div class="upload-area">
       <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" multiple />
+      <br />
+      <label class="lang-row">OCR language:
+        <select id="langSelect">
+          <option value="eng" selected>English only (best for English PIs)</option>
+          <option value="eng+ben">English + Bangla</option>
+        </select>
+      </label>
       <br />
       <button id="processBtn" class="btn">Process PI</button>
       <div class="disclaimer">🔒 No data is stored in the server.</div>
@@ -290,8 +313,8 @@
 
       let worker;
       try {
-        status.textContent = 'Loading OCR engine (first run downloads Bangla + English data)...';
-        worker = await Tesseract.createWorker('ben+eng');
+        status.textContent = 'Loading OCR engine (first run downloads the language data)...';
+        worker = await Tesseract.createWorker(document.getElementById('langSelect').value);
 
         const pdfParts = [];  // one text-layer PDF per page, made by Tesseract
         const texts = [];     // the text of the same OCR pass
@@ -313,7 +336,7 @@
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             for (let i = 1; i <= pdf.numPages; i++) {
               const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 2.0 }); // ~200 DPI
+              const viewport = page.getViewport({ scale: 200 / 72 }); // 200 DPI (scale 1 = 72 DPI)
               const canvas = document.createElement('canvas');
               canvas.width = viewport.width;
               canvas.height = viewport.height;
