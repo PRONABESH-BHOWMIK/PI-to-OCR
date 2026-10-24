@@ -171,16 +171,16 @@
     <div id="status" class="status"></div>
 
     <div id="resultSection" class="result-section">
-      <h3>Extracted Text (Reliable for copying)</h3>
-      <div id="extractedText" class="box"></div>
-      
       <h3>Formatted Item Lines</h3>
       <div id="formattedText" class="box"></div>
 
-      <h3>PDF Preview</h3>
-      <iframe id="pdfViewer"></iframe>
+      <h3>Searchable PDF (select and copy text from here)</h3>
+      <iframe id="pdfViewer" title="Searchable PDF"></iframe>
       <br />
       <button id="downloadBtn" class="btn">Download Searchable PDF</button>
+
+      <h3>Extracted Text (Reliable for copying)</h3>
+      <div id="extractedText" class="box"></div>
     </div>
 
     <div class="footer">
@@ -200,6 +200,9 @@
     // Set PDF.js worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
+    const MAX_PAGES = 30;
+    const AI_CHAR_LIMIT = 8000; // OCR text sent to the AI; raise if long PIs lose their last items
+
     const fileInput = document.getElementById('fileInput');
     const processBtn = document.getElementById('processBtn');
     const status = document.getElementById('status');
@@ -217,98 +220,96 @@
         status.textContent = 'Please select at least one file.';
         return;
       }
-      if (files.length > 30) {
-        status.textContent = 'Maximum 30 pages/files allowed.';
-        return;
-      }
 
       processBtn.disabled = true;
-      status.textContent = 'Processing OCR in browser... (this may take a moment)';
       resultSection.classList.remove('active');
+      searchablePdfBlob = null;
 
+      let worker;
       try {
-        let fullOcrText = '';
-        const pdfDoc = await PDFLib.PDFDocument.create();
+        status.textContent = 'Loading OCR engine (first run downloads Bangla + English data)...';
+        worker = await Tesseract.createWorker('ben+eng');
+
+        const pdfParts = [];  // one text-layer PDF per page, made by Tesseract
+        const texts = [];     // the text of the same OCR pass
+        let pageNo = 0;
+
+        // OCR one canvas: returns nothing, stores the page PDF (image + invisible text) and its text
+        async function ocrCanvas(canvas) {
+          if (++pageNo > MAX_PAGES) throw new Error(`More than ${MAX_PAGES} pages; please upload fewer pages.`);
+          status.textContent = `OCR page ${pageNo}...`;
+          const enhancedDataUrl = enhanceImage(canvas); // grayscale + contrast, returns JPEG data URL
+          const { data } = await worker.recognize(enhancedDataUrl, { pdfTitle: 'PI' }, { pdf: true });
+          pdfParts.push(new Uint8Array(data.pdf));
+          texts.push(data.text);
+        }
 
         for (const file of files) {
-          if (file.type === 'application/pdf') {
+          if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            
             for (let i = 1; i <= pdf.numPages; i++) {
-              status.textContent = `Processing PDF page ${i} of ${pdf.numPages}...`;
               const page = await pdf.getPage(i);
               const viewport = page.getViewport({ scale: 2.0 }); // ~200 DPI
               const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d');
-              canvas.height = viewport.height;
               canvas.width = viewport.width;
-
-              await page.render({ canvasContext: context, viewport }).promise;
-              
-              // Enhance image (assumes enhance.js exports enhanceImage)
-              const enhancedDataUrl = enhanceImage(canvas); 
-              const { data: { text } } = await Tesseract.recognize(enhancedDataUrl, 'ben+eng');
-              fullOcrText += text + '\n';
-
-              // Add to searchable PDF
-              const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-              const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
-              const img = await pdfDoc.embedJpg(imgBytes);
-              const newPage = pdfDoc.addPage([viewport.width, viewport.height]);
-              newPage.drawImage(img, { x: 0, y: 0, width: viewport.width, height: viewport.height });
+              canvas.height = viewport.height;
+              await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+              await ocrCanvas(canvas);
             }
           } else {
-            status.textContent = `Processing image: ${file.name}...`;
             const imgBitmap = await createImageBitmap(file);
             const canvas = document.createElement('canvas');
-            // Clamp long side to 1650-2200px (handled inside enhance.js or here)
-            const scale = Math.min(2000 / Math.max(imgBitmap.width, imgBitmap.height), 1);
-            canvas.width = imgBitmap.width * scale;
-            canvas.height = imgBitmap.height * scale;
+            canvas.width = imgBitmap.width;
+            canvas.height = imgBitmap.height;
             const context = canvas.getContext('2d');
-            context.drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
-            
-            const enhancedDataUrl = enhanceImage(canvas);
-            const { data: { text } } = await Tesseract.recognize(enhancedDataUrl, 'ben+eng');
-            fullOcrText += text + '\n';
-
-            const imgBytes = await file.arrayBuffer();
-            const img = await pdfDoc.embedJpg(imgBytes); // Simplified for images
-            const newPage = pdfDoc.addPage([img.width, img.height]);
-            newPage.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+            context.fillStyle = '#fff'; // transparent PNGs would otherwise turn black
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(imgBitmap, 0, 0);
+            await ocrCanvas(canvas); // enhanceImage() resizes to the OCR size
           }
         }
 
-        status.textContent = 'Sending OCR text to AI for formatting...';
-        extractedTextEl.textContent = fullOcrText;
-
-        // Send RAW OCR text to AI, not pre-extracted data
-        const aiResponse = await fetch('/api/describe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ocrText: fullOcrText.substring(0, 8000) })
-        });
-
-        if (!aiResponse.ok) {
-          const err = await aiResponse.text();
-          throw new Error(`AI API failed: ${aiResponse.status} - ${err}`);
+        // Merge the page PDFs; the invisible text layer is kept, so the text is selectable and searchable
+        status.textContent = 'Building searchable PDF...';
+        const merged = await PDFLib.PDFDocument.create();
+        for (const bytes of pdfParts) {
+          const doc = await PDFLib.PDFDocument.load(bytes);
+          const copied = await merged.copyPages(doc, doc.getPageIndices());
+          copied.forEach((p) => merged.addPage(p));
         }
+        searchablePdfBlob = new Blob([await merged.save()], { type: 'application/pdf' });
 
-        const aiData = await aiResponse.json();
-        // Assumes format.js exports formatOutput to clean up AI response
-        formattedTextEl.textContent = formatOutput(aiData.text || aiData.choices?.[0]?.message?.content || 'No formatted output returned.');
-
-        searchablePdfBlob = await pdfDoc.save();
-        const pdfUrl = URL.createObjectURL(searchablePdfBlob);
-        pdfViewer.src = pdfUrl;
-
+        // Show the PDF and the text right away, so they are not lost if the AI step fails
+        const fullOcrText = texts.join('\n\n');
+        extractedTextEl.textContent = fullOcrText;
+        pdfViewer.src = URL.createObjectURL(searchablePdfBlob);
+        formattedTextEl.textContent = '';
         resultSection.classList.add('active');
-        status.textContent = 'Processing complete!';
+
+        status.textContent = 'Sending OCR text to AI for formatting...';
+        try {
+          const aiResponse = await fetch('/api/describe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ocrText: fullOcrText.substring(0, AI_CHAR_LIMIT) })
+          });
+          if (!aiResponse.ok) {
+            throw new Error(`AI API failed: ${aiResponse.status} - ${await aiResponse.text()}`);
+          }
+          const aiData = await aiResponse.json();
+          formattedTextEl.textContent = formatOutput(aiData.text || aiData.choices?.[0]?.message?.content || 'No formatted output returned.');
+          status.textContent = 'Processing complete!';
+        } catch (aiErr) {
+          console.error(aiErr);
+          formattedTextEl.textContent = 'The AI step failed, but the searchable PDF and extracted text below are ready.\n' + aiErr.message;
+          status.textContent = 'Searchable PDF ready; AI step failed.';
+        }
       } catch (err) {
         console.error(err);
         status.textContent = 'Error: ' + err.message;
       } finally {
+        if (worker) await worker.terminate();
         processBtn.disabled = false;
       }
     });
@@ -320,7 +321,7 @@
         a.href = url;
         a.download = 'searchable_pi.pdf';
         a.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
     });
   </script>

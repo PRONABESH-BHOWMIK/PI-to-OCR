@@ -1,29 +1,20 @@
 // api/describe.js
-export const config = {
-  runtime: 'nodejs',
-};
+// Vercel web handler: export a function named after the HTTP method.
+// (A plain `export default function handler(req)` that returns a Response is treated as a
+// Node (req, res) handler, so the response is never sent and the request ends in a 504 timeout.)
+const json = (body, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-export default async function handler(req) {
-  if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
-  }
-
+export async function POST(request) {
   try {
-    const { ocrText } = await req.json();
-
+    const { ocrText } = await request.json();
     if (!ocrText || typeof ocrText !== 'string') {
-      return new Response(JSON.stringify({ error: 'Missing or invalid ocrText' }), { 
-        status: 400, 
-        headers: { 'Content-Type': 'application/json' } 
-      });
+      return json({ error: 'Missing or invalid ocrText' }, 400);
     }
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'GROQ_API_KEY is not configured in Vercel' }), { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
-      });
+      return json({ error: 'GROQ_API_KEY is not configured in Vercel' }, 500);
     }
 
     const prompt = `Format this PI OCR text. Rules: 1 block per item, plain numbering, comma separated. Max 60 chars per line. Missing = N/A. Example: 1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS, H.S. CODE : 5208.39.00. Output ONLY the formatted text. No markdown, no intro.
@@ -38,38 +29,29 @@ ${ocrText}`;
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 1024
-      })
+      }),
+      // answer with a readable error before Vercel's own time limit kills the function
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      return new Response(JSON.stringify({ 
-        error: `Groq API failed: ${response.status}`, 
-        details: errorData.error?.message || 'Unknown error' 
-      }), { 
-        status: response.status, 
-        headers: { 'Content-Type': 'application/json' } 
-      });
+      return json({
+        error: `Groq API failed: ${response.status}`,
+        details: errorData.error?.message || 'Unknown error'
+      }, 502);
     }
 
     const data = await response.json();
-    const formattedText = data.choices?.[0]?.message?.content || 'No formatted output returned.';
-    
-    return new Response(JSON.stringify({ text: formattedText }), { 
-      status: 200, 
-      headers: { 'Content-Type': 'application/json' } 
-    });
-
+    return json({ text: data.choices?.[0]?.message?.content || 'No formatted output returned.' });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Internal Server Error', details: error.message }), { 
-      status: 500, 
-      headers: { 'Content-Type': 'application/json' } 
-    });
+    if (error.name === 'TimeoutError') {
+      return json({ error: 'Groq did not answer within 8 seconds' }, 504);
+    }
+    return json({ error: 'Internal Server Error', details: error.message }, 500);
   }
 }
