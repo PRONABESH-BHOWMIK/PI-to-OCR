@@ -17,6 +17,9 @@ export async function POST(request) {
       return json({ error: 'GROQ_API_KEY is not configured in Vercel' }, 500);
     }
 
+    // llama-3.3-70b-versatile was shut down by Groq on 2026-08-16; this is Groq's recommended replacement
+    const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+
     const prompt = `Format this PI OCR text. Rules: 1 block per item, plain numbering, comma separated. Max 60 chars per line. Missing = N/A. Example: 1. ITEM NAME, QUANTITY : 5000 YDS, UNIT PRICE : USD 1.85/YDS, H.S. CODE : 5208.39.00. Output ONLY the formatted text. No markdown, no intro.
 
 Raw OCR:
@@ -29,10 +32,12 @@ ${ocrText}`;
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
-        max_tokens: 1024
+        max_tokens: 2048,
+        // gpt-oss thinks before answering and thinking tokens count against max_tokens; keep it short
+        ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {})
       }),
       // answer with a readable error before Vercel's own time limit kills the function
       signal: AbortSignal.timeout(8000)
