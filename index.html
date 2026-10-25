@@ -192,7 +192,7 @@
       <label class="lang-row">OCR language:
         <select id="langSelect">
           <option value="eng" selected>English only (best for English PIs)</option>
-          <option value="eng+ben">English + Bangla</option>
+          <option value="ben+eng">English + Bangla</option>
         </select>
       </label>
       <br />
@@ -232,6 +232,7 @@
 
   <!-- Local scripts (keep your existing enhance.js and format.js) -->
   <script src="enhance.js"></script>
+  <script src="tablelines.js"></script>
   <script src="format.js"></script>
 
   <script>
@@ -316,17 +317,26 @@
         status.textContent = 'Loading OCR engine (first run downloads the language data)...';
         worker = await Tesseract.createWorker(document.getElementById('langSelect').value);
 
-        const pdfParts = [];  // one text-layer PDF per page, made by Tesseract
+        const pages = [];     // per page: the picture shown in the PDF + Tesseract's invisible text layer for it
         const texts = [];     // the text of the same OCR pass
         let pageNo = 0;
 
-        // OCR one canvas: returns nothing, stores the page PDF (image + invisible text) and its text
+        // OCR one canvas. The OCR reads a copy with the ruled table lines removed (lines hide table columns
+        // from the OCR, e.g. the Unit Price column); the PDF keeps the original picture of the page.
         async function ocrCanvas(canvas) {
           if (++pageNo > MAX_PAGES) throw new Error(`More than ${MAX_PAGES} pages; please upload fewer pages.`);
           status.textContent = `OCR page ${pageNo}...`;
           const enhancedDataUrl = enhanceImage(canvas); // grayscale + contrast, returns JPEG data URL
-          const { data } = await worker.recognize(enhancedDataUrl, { pdfTitle: 'PI' }, { pdf: true });
-          pdfParts.push(new Uint8Array(data.pdf));
+          const clean = document.createElement('canvas');
+          clean.width = canvas.width;
+          clean.height = canvas.height;
+          const cleanCtx = clean.getContext('2d', { willReadFrequently: true });
+          cleanCtx.drawImage(canvas, 0, 0);
+          const px = cleanCtx.getImageData(0, 0, clean.width, clean.height);
+          removeTableLines(px.data, clean.width, clean.height);
+          cleanCtx.putImageData(px, 0, 0);
+          const { data } = await worker.recognize(clean.toDataURL('image/png'), { pdfTitle: 'PI', pdfTextOnly: true }, { pdf: true });
+          pages.push({ jpeg: enhancedDataUrl, textPdf: new Uint8Array(data.pdf) });
           texts.push(data.text);
         }
 
@@ -359,10 +369,15 @@
         // Merge the page PDFs; the invisible text layer is kept, so the text is selectable and searchable
         status.textContent = 'Building searchable PDF...';
         const merged = await PDFLib.PDFDocument.create();
-        for (const bytes of pdfParts) {
-          const doc = await PDFLib.PDFDocument.load(bytes);
-          const copied = await merged.copyPages(doc, doc.getPageIndices());
-          copied.forEach((p) => merged.addPage(p));
+        for (const pg of pages) {
+          const textDoc = await PDFLib.PDFDocument.load(pg.textPdf);
+          const w = textDoc.getPage(0).getWidth();
+          const h = textDoc.getPage(0).getHeight();
+          const [textPage] = await merged.embedPdf(textDoc);
+          const picture = await merged.embedJpg(pg.jpeg);
+          const page = merged.addPage([w, h]);
+          page.drawImage(picture, { x: 0, y: 0, width: w, height: h }); // the page as scanned, table lines included
+          page.drawPage(textPage, { x: 0, y: 0, width: w, height: h }); // invisible text on top: selectable and searchable
         }
         searchablePdfBlob = new Blob([await merged.save()], { type: 'application/pdf' });
 

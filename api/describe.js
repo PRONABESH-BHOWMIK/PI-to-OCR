@@ -32,6 +32,7 @@ Rules:
 - beneficiary is the seller / exporter / shipper who issued the PI. name = the company name only. address = the full postal address (street, city, postal code, country) as one string. Leave out phone, fax, email and website.
 - items has one entry per product line, in the PI's order. item_name = the item name only, as written in the PI (no quantity, price or H.S. code).
 - quantity = the number only. uom = the unit of measure as written in the PI (YDS, PCS, KG, MTR, SET...). currency = the currency code (USD, EUR...). unit_price = the number only, the price for one unit.
+- The text may be a table with one row per item, columns separated by spaces. Do not mistake the pack size (for example 120 Kg drum) for the ordered quantity (the Qty column), or the line total for the unit price (the Unit Price column).
 - hs_code = the H.S. code printed in the PI for that item.
 - Copy numbers and codes exactly as printed. Use null for anything that is not in the text. Do not guess.
 ${EXTRA_RULES}
