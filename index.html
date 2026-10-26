@@ -196,6 +196,10 @@
         </select>
       </label>
       <br />
+      <label class="lang-row">Pages to OCR (PDF only):
+        <input type="text" id="pagesInput" placeholder="all pages, or e.g. 1-3, 5" style="font-family:inherit;margin-left:8px;padding:8px 14px;border:1px solid #C7D2FE;border-radius:9999px;width:200px;" />
+      </label>
+      <br />
       <button id="processBtn" class="btn">Process PI</button>
       <div class="disclaimer">🔒 No data is stored in the server.</div>
     </div>
@@ -203,6 +207,10 @@
     <div id="status" class="status"></div>
 
     <div id="resultSection" class="result-section">
+      <h3>PI Number and Date</h3>
+      <div id="piRefText" class="box" style="max-height:none;"></div>
+      <button id="copyRefBtn" class="btn small green">Copy Text</button>
+
       <h3>Formatted Item Lines</h3>
       <div id="formattedText" class="box"></div>
       <button id="copyItemsBtn" class="btn small green">Copy Text</button>
@@ -263,6 +271,38 @@
     const checksTextEl = document.getElementById('checksText');
     const pdfViewer = document.getElementById('pdfViewer');
     const downloadBtn = document.getElementById('downloadBtn');
+
+    const piRefTextEl = document.getElementById('piRefText');
+    const pagesInput = document.getElementById('pagesInput');
+
+    // "1-3, 5" -> Set{1,2,3,5}; empty -> null (all pages); invalid -> undefined
+    function parsePages(s) {
+      s = (s || '').trim();
+      if (!s) return null;
+      const set = new Set();
+      for (const p of s.split(',')) {
+        const m = p.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+        if (!m) return undefined;
+        const a = +m[1], b = m[2] ? +m[2] : a;
+        if (a < 1 || b < a) return undefined;
+        for (let i = a; i <= b; i++) set.add(i);
+      }
+      return set;
+    }
+
+    // Looks for "PI No ..." and "Date ..." in the extracted text. Best effort: check it against the PI.
+    function extractPiRef(text) {
+      const t = String(text);
+      let no = 'N/A', date = 'N/A';
+      const noRe = /(?:proforma\s+invoice|p\s?\/?\.?\s?i\.?|invoice|ref(?:erence)?)\s*(?:no\.?|number|num|#)\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\/\-._]*)/gi;
+      for (const m of t.matchAll(noRe)) {
+        const v = m[1].replace(/[.\-_\/]+$/, '');
+        if (/\d/.test(v)) { no = v; break; }
+      }
+      const dRe = /\bdated?\b\s*[:.\-]?\s*(\d{1,2}(?:st|nd|rd|th)?[\s\/\-.]+[A-Za-z]{3,9}[\s\/\-.,]+\d{2,4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|[A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/gi;
+      for (const m of t.matchAll(dRe)) { date = m[1].replace(/\s+/g, ' ').trim(); break; }
+      return `${no} DATED ${date}`.toUpperCase();
+    }
 
     let searchablePdfBlob = null;
     let lastOcrText = '';
@@ -343,11 +383,18 @@
     regenBtn.addEventListener('click', () => compile(lastOcrText, true, lastImages));
     document.getElementById('copyItemsBtn').addEventListener('click', (e) => copyText(formattedTextEl, e.currentTarget));
     document.getElementById('copyBenBtn').addEventListener('click', (e) => copyText(beneficiaryTextEl, e.currentTarget));
+    document.getElementById('copyRefBtn').addEventListener('click', (e) => copyText(piRefTextEl, e.currentTarget));
 
     processBtn.addEventListener('click', async () => {
       const files = Array.from(fileInput.files);
       if (files.length === 0) {
         status.textContent = 'Please select at least one file.';
+        return;
+      }
+
+      const wanted = parsePages(pagesInput.value);
+      if (wanted === undefined) {
+        status.textContent = 'Page list not understood. Use for example 1-3, 5 or leave it empty.';
         return;
       }
 
@@ -394,6 +441,7 @@
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             for (let i = 1; i <= pdf.numPages; i++) {
+              if (wanted && !wanted.has(i)) continue;
               const page = await pdf.getPage(i);
               const viewport = page.getViewport({ scale: 200 / 72 }); // 200 DPI (scale 1 = 72 DPI)
               const canvas = document.createElement('canvas');
@@ -438,6 +486,7 @@
         resultSection.classList.add('active');
 
         lastOcrText = fullOcrText;
+        piRefTextEl.textContent = extractPiRef(fullOcrText);
         beneficiaryTextEl.textContent = '';
         checksSection.style.display = 'none';
 
