@@ -101,6 +101,36 @@
       background: #FFFFFF;
       color: var(--text-main);
     }
+    .page-list {
+      margin-top: 12px;
+      text-align: left;
+    }
+    .page-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      margin: 6px 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .page-row .name {
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+    .page-row input {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 6px 14px;
+      width: 190px;
+      border: 1px solid #C7D2FE;
+      border-radius: 9999px;
+    }
     .btn.small {
       padding: 9px 20px;
       font-size: 0.9rem;
@@ -188,6 +218,7 @@
 
     <div class="upload-area">
       <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" multiple />
+      <div id="pageList" class="page-list"></div>
       <br />
       <label class="lang-row">OCR language:
         <select id="langSelect">
@@ -203,6 +234,10 @@
     <div id="status" class="status"></div>
 
     <div id="resultSection" class="result-section">
+      <h3>PI Number and Date</h3>
+      <div id="piText" class="box"></div>
+      <button id="copyPiBtn" class="btn small green">Copy Text</button>
+
       <h3>Formatted Item Lines</h3>
       <div id="formattedText" class="box"></div>
       <button id="copyItemsBtn" class="btn small green">Copy Text</button>
@@ -240,14 +275,13 @@
   <script src="tablelines.js"></script>
   <script src="format.js"></script>
   <script src="verify.js"></script>
+  <script src="pages.js"></script>
 
   <script>
     // Set PDF.js worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
     const MAX_PAGES = 30;
-    const AI_MAX_PAGES = 3;        // the vision model takes at most 3 pictures per request
-    const AI_MAX_BYTES = 3400000;  // Vercel rejects request bodies over 4.5 MB; leave room for the text
     const OCR_UPSCALE = 1.5; // the OCR reads a 1.5x enlarged copy; the PDF keeps the original picture
     const AI_CHAR_LIMIT = 8000; // OCR text sent to the AI; raise if long PIs lose their last items
 
@@ -258,6 +292,7 @@
     const extractedTextEl = document.getElementById('extractedText');
     const formattedTextEl = document.getElementById('formattedText');
     const beneficiaryTextEl = document.getElementById('beneficiaryText');
+    const piTextEl = document.getElementById('piText');
     const regenBtn = document.getElementById('regenBtn');
     const checksSection = document.getElementById('checksSection');
     const checksTextEl = document.getElementById('checksText');
@@ -266,44 +301,28 @@
 
     let searchablePdfBlob = null;
     let lastOcrText = '';
-    let lastImages = [];   // page pictures sent for reading, kept for Re-generate
-    let pageNote = '';
 
-    async function askForData(ocrText, retry, images) {
+    async function askForData(ocrText, retry) {
       const res = await fetch('/api/describe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ocrText: ocrText.substring(0, AI_CHAR_LIMIT), retry, images })
+        body: JSON.stringify({ ocrText: ocrText.substring(0, AI_CHAR_LIMIT), retry })
       });
       if (!res.ok) throw new Error(`Data compilation failed: ${res.status} - ${await res.text()}`);
       return res.json();
     }
 
-    // Fills the item lines, checks and beneficiary boxes. It reads the page pictures first (like a person reading
-    // the PI, so every value is taken from its proper place); if that fails or finds nothing, it falls back to the
-    // extracted text, and text-only gets one more pass. retry=true is a Re-generate: if every route fails, the
-    // previous result stays on screen.
-    async function compile(ocrText, retry, images) {
+    // Sends the OCR text for data compilation and fills the item lines, checks and beneficiary boxes.
+    // retry=true is a Re-generate: if it fails, the previous result stays on screen.
+    async function compile(ocrText, retry) {
       status.textContent = 'Processing for data compilation...';
       regenBtn.disabled = true;
       try {
-        const plan = images.length ? [images, []] : (retry ? [[]] : [[], []]);
-        const info = pageNote ? [pageNote] : [];
-        let data = null, via = 'text', lastError = null;
-        for (let i = 0; i < plan.length; i++) {
-          if (i > 0) status.textContent = 'Processing for data compilation (another pass)...';
-          try {
-            data = await askForData(ocrText, retry || i > 0, plan[i]);
-            via = plan[i].length ? 'pictures' : 'text';
-            if (data.items && data.items.length) break;
-            if (plan[i].length) info.push('Reading the page pictures gave no item lines, so the extracted text was used.');
-          } catch (err) {
-            lastError = err;
-            data = null;
-            if (plan[i].length) info.push('The page pictures could not be read (' + err.message.slice(0, 200) + '), so the extracted text was used.');
-          }
+        let data = await askForData(ocrText, retry);
+        if (!retry && !(data.items && data.items.length)) {   // nothing came back: one automatic second try
+          status.textContent = 'Processing for data compilation (second pass)...';
+          data = await askForData(ocrText, true);
         }
-        if (!data) throw lastError;
         const found = data.items && data.items.length;
         // quantity x unit price = line total, done in code and only with numbers written in the text
         const checked = found ? checkItems(data.items, ocrText) : { items: [], notes: [] };
@@ -311,10 +330,11 @@
           ? formatItems(checked.items)
           : 'No item lines found.' + (data.notes ? '\n' + data.notes : '') + (data.debug ? '\nReply received: ' + data.debug : '');
         beneficiaryTextEl.textContent = formatBeneficiary(data.beneficiary);
-        const lines = [...info, ...checked.notes];
+        piTextEl.textContent = formatPiRef(data.pi);
+        const lines = [...checkPiRef(data.pi, ocrText), ...checked.notes];
         checksTextEl.textContent = lines.join('\n');
         checksSection.style.display = lines.length ? 'block' : 'none';
-        status.textContent = 'Processing complete!' + (via === 'pictures' && found ? ' (read from the page pictures)' : '');
+        status.textContent = 'Processing complete!';
       } catch (err) {
         console.error(err);
         if (!retry) formattedTextEl.textContent = 'Data compilation failed, but the searchable PDF and extracted text below are ready.\n' + err.message;
@@ -340,13 +360,76 @@
       setTimeout(() => { btn.textContent = label; }, 1500);
     }
 
-    regenBtn.addEventListener('click', () => compile(lastOcrText, true, lastImages));
+    regenBtn.addEventListener('click', () => compile(lastOcrText, true));
     document.getElementById('copyItemsBtn').addEventListener('click', (e) => copyText(formattedTextEl, e.currentTarget));
     document.getElementById('copyBenBtn').addEventListener('click', (e) => copyText(beneficiaryTextEl, e.currentTarget));
+    document.getElementById('copyPiBtn').addEventListener('click', (e) => copyText(piTextEl, e.currentTarget));
+
+    // Page selection: one row per chosen file, with a box for the pages to use (blank = all pages)
+    const pageList = document.getElementById('pageList');
+    let fileRows = Promise.resolve([]);
+    let rowInputs = [];
+    let rowToken = 0;
+
+    const isPdfFile = (file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+    async function countPages(file) {
+      if (!isPdfFile(file)) return 1;
+      try {
+        return (await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise).numPages;
+      } catch {
+        return 0; // unreadable PDF
+      }
+    }
+
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files);
+      const token = ++rowToken;
+      pageList.textContent = '';
+      rowInputs = [];
+      fileRows = Promise.all(files.map(async (file) => ({ file, isPdf: isPdfFile(file), total: await countPages(file) })));
+      fileRows.then((rows) => {
+        if (token !== rowToken) return; // the selection changed while the pages were being counted
+        rows.forEach((row) => {
+          const div = document.createElement('div');
+          div.className = 'page-row';
+          const name = document.createElement('span');
+          name.className = 'name';
+          name.textContent = row.file.name;
+          name.title = row.file.name;
+          const info = document.createElement('span');
+          info.textContent = row.isPdf ? (row.total ? `${row.total} page${row.total === 1 ? '' : 's'}` : 'cannot read this PDF') : 'image, 1 page';
+          div.append(name, info);
+          let input = null;
+          if (row.isPdf && row.total > 1) {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'All pages (e.g. 1-3, 5)';
+            input.setAttribute('aria-label', 'Pages to use from ' + row.file.name);
+            div.append(input);
+          }
+          rowInputs.push(input);
+          pageList.append(div);
+        });
+      });
+    });
+
+    // The pages to OCR, per file. A bad selection throws an error that says what to fix.
+    async function choosePages() {
+      const rows = await fileRows;
+      if (rows.length !== fileInput.files.length) throw new Error('Please choose the files again.');
+      return rows.map((row, i) => {
+        if (row.isPdf && row.total === 0) throw new Error(`${row.file.name}: cannot read this PDF.`);
+        try {
+          return { file: row.file, isPdf: row.isPdf, pages: parsePageSpec(rowInputs[i] ? rowInputs[i].value : '', row.total) };
+        } catch (err) {
+          throw new Error(`${row.file.name}: ${err.message}`);
+        }
+      });
+    }
 
     processBtn.addEventListener('click', async () => {
-      const files = Array.from(fileInput.files);
-      if (files.length === 0) {
+      if (fileInput.files.length === 0) {
         status.textContent = 'Please select at least one file.';
         return;
       }
@@ -357,6 +440,9 @@
 
       let worker;
       try {
+        const plan = await choosePages(); // [{ file, isPdf, pages }]; a bad page selection stops here, before the OCR engine loads
+        const totalPages = plan.reduce((n, item) => n + item.pages.length, 0);
+        if (totalPages > MAX_PAGES) throw new Error(`${totalPages} pages selected; the limit is ${MAX_PAGES}. Select fewer pages.`);
         status.textContent = 'Loading OCR engine (first run downloads the language data)...';
         worker = await Tesseract.createWorker(document.getElementById('langSelect').value);
 
@@ -368,7 +454,7 @@
         // from the OCR, e.g. the Unit Price column); the PDF keeps the original picture of the page.
         async function ocrCanvas(canvas) {
           if (++pageNo > MAX_PAGES) throw new Error(`More than ${MAX_PAGES} pages; please upload fewer pages.`);
-          status.textContent = `OCR page ${pageNo}...`;
+          status.textContent = `OCR page ${pageNo} of ${totalPages}...`;
           const enhancedDataUrl = enhanceImage(canvas); // grayscale + contrast, returns JPEG data URL
           const clean = document.createElement('canvas');
           clean.width = canvas.width;
@@ -389,11 +475,11 @@
           texts.push(data.text);
         }
 
-        for (const file of files) {
-          if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+        for (const { file, isPdf, pages: wanted } of plan) {
+          if (isPdf) {
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            for (let i = 1; i <= pdf.numPages; i++) {
+            for (const i of wanted) {
               const page = await pdf.getPage(i);
               const viewport = page.getViewport({ scale: 200 / 72 }); // 200 DPI (scale 1 = 72 DPI)
               const canvas = document.createElement('canvas');
@@ -439,21 +525,10 @@
 
         lastOcrText = fullOcrText;
         beneficiaryTextEl.textContent = '';
+        piTextEl.textContent = '';
         checksSection.style.display = 'none';
 
-        // The page pictures go to the vision model as well: first pages first, within the size limits
-        const aiImages = [];
-        let aiBytes = 0;
-        for (const pg of pages.slice(0, AI_MAX_PAGES)) {
-          if (aiBytes + pg.jpeg.length > AI_MAX_BYTES) break;
-          aiImages.push(pg.jpeg);
-          aiBytes += pg.jpeg.length;
-        }
-        lastImages = aiImages;
-        pageNote = aiImages.length === 0
-          ? 'The page pictures were too large to send, so the extracted text was used.'
-          : (aiImages.length < pages.length ? `Only the first ${aiImages.length} of ${pages.length} pages were sent for reading (limit: ${AI_MAX_PAGES} pages, about 3 MB).` : '');
-        await compile(fullOcrText, false, aiImages);
+        await compile(fullOcrText, false);
       } catch (err) {
         console.error(err);
         status.textContent = 'Error: ' + err.message;
