@@ -42,13 +42,6 @@ function formatItems(items) {
   }).join('\n');
 }
 
-// PI number and date in one line: "RH-2026-01391-(C-G) DATED 20.08.2026" (capital letters, N/A for a missing part).
-function formatPiRef(pi) {
-  const number = clean(pi && pi.number), date = clean(pi && pi.date);
-  if (!number && !date) return 'N/A';
-  return `${orNA(number)} DATED ${orNA(date)}`.toUpperCase();
-}
-
 // Seller / exporter / shipper: name, then address; capital letters, max 35 characters per line.
 function formatBeneficiary(b) {
   const lines = [
@@ -58,4 +51,4 @@ function formatBeneficiary(b) {
   return lines.length ? lines.join('\n') : 'N/A';
 }
 
-if (typeof module !== 'undefined') module.exports = { formatItems, formatBeneficiary, formatPiRef };
+if (typeof module !== 'undefined') module.exports = { formatItems, formatBeneficiary };

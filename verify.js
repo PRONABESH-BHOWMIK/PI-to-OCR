@@ -103,17 +103,4 @@ function checkItems(items, ocrText) {
   return { items: checked, notes };
 }
 
-// The PI number and date the AI gives must be written in the extracted text (case, spaces, dots and dashes ignored).
-const squash = (x) => String(x).toUpperCase().replace(/[^A-Z0-9]/g, '');
-function checkPiRef(pi, ocrText) {
-  const text = squash(ocrText);
-  const notes = [];
-  for (const [label, key] of [['PI number', 'number'], ['PI date', 'date']]) {
-    const value = pi && pi[key] != null ? String(pi[key]).trim() : '';
-    if (!squash(value)) notes.push(`${label} was not found in the text.`);
-    else if (!text.includes(squash(value))) notes.push(`${label} ${value} is not written in the extracted text exactly as given. Please check it against the PI.`);
-  }
-  return notes;
-}
-
-if (typeof module !== 'undefined') module.exports = { checkItems, checkPiRef, toNumber };
+if (typeof module !== 'undefined') module.exports = { checkItems, toNumber };

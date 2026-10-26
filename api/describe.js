@@ -11,25 +11,36 @@ const EXTRA_RULES = '';
 
 export async function POST(request) {
   try {
-    const { ocrText, retry } = await request.json();
+    const { ocrText, retry, images } = await request.json();
     if (!ocrText || typeof ocrText !== 'string') {
       return json({ error: 'Missing or invalid ocrText' }, 400);
     }
+    // Page pictures (JPEG data URLs). Groq's vision models take at most 3 images per request.
+    const pictures = Array.isArray(images) ? images : [];
+    if (pictures.length > 3 || pictures.some((u) => typeof u !== 'string' || !u.startsWith('data:image/jpeg;base64,')) || pictures.join('').length > 4000000) {
+      return json({ error: 'Invalid images: send at most 3 JPEG data URLs, 4 MB in total' }, 400);
+    }
+    const vision = pictures.length > 0;
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return json({ error: 'GROQ_API_KEY is not configured in Vercel' }, 500);
     }
 
-    // llama-3.3-70b-versatile was shut down by Groq on 2026-08-16; this is Groq's recommended replacement
-    const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+    // Text model: llama-3.3-70b-versatile was shut down by Groq on 2026-08-16; this is Groq's recommended replacement.
+    // Vision model: Groq lists qwen/qwen3.8-27b (preview) for images; set GROQ_VISION_MODEL if Groq changes it.
+    const model = vision ? (process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b') : (process.env.GROQ_MODEL || 'openai/gpt-oss-120b');
+    const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 8000;
 
-    const prompt = `You read the OCR text of a Proforma Invoice (PI). The text may contain recognition errors and mixed Bangla/English. Return ONLY a JSON object, no markdown fences and no commentary, in exactly this shape:
+    const intro = vision
+      ? "You read a Proforma Invoice (PI) from its page pictures, the way a person would: the pictures show which name, quantity, price and amount sit in the same row, so use the layout. The OCR text after the rules is a machine reading of the same pages and may be wrong, garbled or out of order: trust the pictures and use the OCR text only to double-check digits. The PI may mix Bangla and English."
+      : 'You read the OCR text of a Proforma Invoice (PI). The text may contain recognition errors and mixed Bangla/English.';
 
-{"pi":{"number":"...","date":"..."},"beneficiary":{"name":"...","address":"..."},"items":[{"item_name":"...","quantity":"...","uom":"...","currency":"...","unit_price":"...","line_total":"...","hs_code":"..."}],"notes":""}
+    const prompt = `${intro} Return ONLY a JSON object, no markdown fences and no commentary, in exactly this shape:
+
+{"beneficiary":{"name":"...","address":"..."},"items":[{"item_name":"...","quantity":"...","uom":"...","currency":"...","unit_price":"...","line_total":"...","hs_code":"..."}],"notes":""}
 
 Rules:
-- pi.number = the number of this Proforma Invoice itself, copied exactly as printed (labels such as P.INVOICE NO., PI No., Proforma Invoice No., Indent No.). It is not the buyer's PO number, an LC number, a registration number (for example Indent Reg No), a TIN, BIN or GST number. pi.date = the date printed for the PI number (for example P.INVOICE DATE or Date beside the PI number), copied exactly as printed. It is not the PO date, validity date, shipment date or registration date.
 - beneficiary is the seller / exporter / shipper who issued the PI. name = the company name only. address = the full postal address (street, city, postal code, country) as one string. Leave out phone, fax, email and website.
 - items has one entry per product line, in the PI's order. item_name = the item name only, as written in the PI (no quantity, price or H.S. code).
 - quantity = the number only. uom = the unit of measure as written in the PI (YDS, PCS, KG, MTR, SET...). currency = the currency code (USD, EUR...). unit_price = the number only, the price for one unit.
@@ -42,7 +53,7 @@ Rules:
 ${EXTRA_RULES}
 ${retry ? 'Your previous answer was rejected by the user. Re-read the text carefully and correct any mistakes.' : ''}
 
-Raw OCR:
+${vision ? 'OCR text (may be wrong or out of order):' : 'Raw OCR:'}
 ${ocrText}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -53,14 +64,21 @@ ${ocrText}`;
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{
+          role: 'user',
+          content: vision
+            ? [...pictures.map((url) => ({ type: 'image_url', image_url: { url } })), { type: 'text', text: prompt }]
+            : prompt
+        }],
         temperature: retry ? 0.5 : 0.1, // a re-generate should not just repeat the same answer
-        max_tokens: 2048,
+        max_tokens: vision ? 4096 : 2048,
         // gpt-oss thinks before answering and thinking tokens count against max_tokens; keep it short
-        ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {})
+        ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}),
+        // Qwen vision: instruct mode (no thinking, per Groq's model page) and guaranteed JSON
+        ...(vision ? { reasoning_effort: 'none', response_format: { type: 'json_object' } } : {})
       }),
       // answer with a readable error before Vercel's own time limit kills the function
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(timeoutMs)
     });
 
     if (!response.ok) {
@@ -81,10 +99,10 @@ ${ocrText}`;
     }
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     return json({
-      pi: parsed.pi || null,
       beneficiary: parsed.beneficiary || null,
       items,
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      via: vision ? 'pictures' : 'text',
       // when nothing was found, pass the AI's own reply along so the page can show why
       ...(items.length ? {} : { debug: raw.slice(0, 300) })
     });
