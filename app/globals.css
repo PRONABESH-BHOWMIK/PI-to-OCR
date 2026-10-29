@@ -27,3 +27,18 @@
   html { scroll-behavior: auto; }
   .reveal { animation: none; }
 }
+
+@media print {
+  body:has(.lc-cost-page) { background: white !important; }
+  body:has(.lc-cost-page) header,
+  body:has(.lc-cost-page) footer,
+  .lc-cost-page .no-print { display: none !important; }
+  .lc-cost-page .calculator-layout { display: block !important; }
+  .lc-cost-page .print-summary { position: static !important; width: 100% !important; }
+  .lc-cost-page .print-summary > section {
+    background: white !important;
+    border: 1px solid #D9E0DC;
+    box-shadow: none !important;
+  }
+  .lc-cost-page .print-summary > section * { color: #16322A !important; border-color: #D9E0DC !important; }
+}

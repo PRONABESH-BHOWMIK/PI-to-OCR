@@ -14,7 +14,7 @@ const tools = [
   { name: 'HS Code Finder', description: 'Find the right HS code for a product.', category: 'Lookup', status: 'coming' },
   { name: 'Bank SWIFT/BIC Code Finder', description: "Look up a bank's SWIFT/BIC code by name, city or country.", category: 'Lookup', status: 'coming' },
   { name: 'INCOTERMS Calculator', description: 'Work out costs and responsibilities under INCOTERMS 2020.', category: 'Calculators', status: 'coming' },
-  { name: 'LC Cost Calculator', description: 'Estimate LC charges, bank fees, and total trade finance costs.', category: 'Calculators', status: 'coming' },
+  { name: 'Cost Calculator', description: 'Calculate bank charges and trade finance costs from one place.', category: 'Calculators', status: 'live', href: '/tools/cost-calculator', subtools: ['LC Issue Cost Calculator'] },
   { name: 'CDCS Mock Test', description: 'Practice CDCS exam-style questions with scoring and explanations.', category: 'Learning', status: 'coming' },
 ];
 
@@ -22,6 +22,7 @@ export default function ToolsGrid({ filterable = false }) {
   const [category, setCategory] = useState('All');
   const categories = ['All', ...new Set(tools.map((t) => t.category))];
   const shown = tools.filter((t) => category === 'All' || t.category === category);
+  const liveToolCount = tools.filter((t) => t.status === 'live').length;
   const live = shown.filter((t) => t.status === 'live');
   const coming = shown.filter((t) => t.status !== 'live');
 
@@ -30,7 +31,7 @@ export default function ToolsGrid({ filterable = false }) {
       {!filterable && (
         <div className="mb-10 max-w-2xl">
           <h2 className="display text-4xl text-ink sm:text-5xl">Tools</h2>
-          <p className="mt-3 text-lg text-mute">One tool is live. The rest are being built, and this list grows as each one ships.</p>
+          <p className="mt-3 text-lg text-mute">{liveToolCount} {liveToolCount === 1 ? 'tool is' : 'tools are'} live. The rest are being built, and this list grows as each one ships.</p>
         </div>
       )}
 
@@ -67,6 +68,19 @@ export default function ToolsGrid({ filterable = false }) {
                 </span>
                 <h3 className="display mt-5 text-4xl sm:text-5xl">{t.name}</h3>
                 <p className="mt-3 max-w-xl text-white/80">{t.description}</p>
+                {t.subtools && (
+                  <div className="mt-5 max-w-xl border-l-2 border-marigold pl-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/55">Available calculators</p>
+                    <ul className="mt-2 space-y-1.5">
+                      {t.subtools.map((subtool) => (
+                        <li key={subtool} className="flex items-center gap-2 font-medium text-white">
+                          <span className="text-marigold" aria-hidden="true">↳</span>
+                          {subtool}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <span className="w-fit shrink-0 rounded-md bg-marigold px-5 py-2.5 font-semibold text-ink">Open tool</span>
             </Link>

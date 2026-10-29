@@ -18,6 +18,7 @@ export default function Footer() {
             <h3 className="font-semibold text-marigold">Tools</h3>
             <ul className="mt-4 space-y-2.5 text-sm">
               <li><Link href="/tools/proforma-invoice-ocr" className={link}>Proforma Invoice OCR</Link></li>
+              <li><Link href="/tools/cost-calculator" className={link}>Cost Calculator</Link></li>
               <li><Link href="/tools" className={link}>All tools</Link></li>
               <li className="text-white/60">More tools coming soon</li>
             </ul>
