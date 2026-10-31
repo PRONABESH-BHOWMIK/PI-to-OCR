@@ -4,367 +4,268 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Proforma Invoice OCR Extractor</title>
-  <!-- Custom Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Match the main site typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,100..900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     :root {
-      --primary: #4F46E5;
-      --primary-hover: #4338CA;
-      --secondary: #10B981;
-      --bg-gradient: linear-gradient(135deg, #F3F4F6 0%, #E0E7FF 100%);
-      --text-main: #1F2937;
-      --text-muted: #6B7280;
+      --paper: #F4F6F5;
+      --ink: #16322A;
+      --mute: #5C6F67;
+      --line: #D9E0DC;
+      --bottle: #0E4D3A;
+      --bottle-dark: #0A3A2B;
+      --marigold: #F2B705;
+      --marigold-light: #FFFBEB;
+      --white: #FFFFFF;
     }
+    * { box-sizing: border-box; }
     body {
-      font-family: 'Poppins', sans-serif;
-      background: var(--bg-gradient);
-      color: var(--text-main);
       margin: 0;
-      padding: 20px;
-      min-height: 100vh;
+      padding: 24px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Hind Siliguri', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: #FFFFFF;
-      border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.15);
-      padding: 32px;
-    }
-    h1 {
-      color: var(--primary);
-      text-align: center;
-      font-weight: 700;
-      font-size: 2rem;
-      margin-bottom: 8px;
-      letter-spacing: -0.5px;
-    }
-    .page-description {
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 1.05rem;
-      margin-bottom: 24px;
-      line-height: 1.6;
-    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .container { max-width: 1080px; margin: 0 auto; }
+    .display { font-family: Archivo, system-ui, sans-serif; font-stretch: 75%; font-weight: 800; }
+    .card { border: 1px solid var(--line); border-radius: 12px; background: var(--white); box-shadow: 0 1px 2px rgba(22, 50, 42, .04); }
+    .upload-card { padding: 26px; }
+    .section-heading { display: flex; align-items: flex-start; gap: 12px; }
+    .step { width: 32px; height: 32px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 6px; background: var(--marigold); font-size: 14px; }
+    .section-heading h2, .results-title h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+    .section-heading p { margin: 3px 0 0; color: var(--mute); font-size: 14px; }
+    .browser-pill { margin-left: auto; padding: 4px 10px; border-radius: 999px; background: var(--paper); color: var(--bottle); font-size: 12px; font-weight: 600; white-space: nowrap; }
     .upload-area {
-      border: 2px dashed #C7D2FE;
-      border-radius: 16px;
-      padding: 32px;
-      text-align: center;
-      background: #F9FAFB;
-      margin-bottom: 20px;
-      transition: border-color 0.3s;
-    }
-    .upload-area:hover {
-      border-color: var(--primary);
-    }
-    .upload-area:focus-visible {
-      outline: 3px solid var(--primary);
-      outline-offset: 3px;
-    }
-    .upload-area.dragging {
-      border-color: var(--primary);
-      background: #EEF2FF;
-    }
-    .upload-icon {
-      width: 46px;
-      height: 46px;
-      margin: 0 auto 12px;
-      color: var(--primary);
-    }
-    .upload-title {
-      margin: 0;
-      font-weight: 600;
-      font-size: 1.05rem;
-    }
-    .upload-or {
-      margin: 8px 0 0;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-    .file-input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      opacity: 0;
-    }
-    .choose-file {
-      display: inline-block;
-      text-decoration: none;
-    }
-    .file-input:focus-visible + .choose-file {
-      outline: 3px solid var(--primary);
-      outline-offset: 3px;
-    }
-    .paste-hint {
-      max-width: 560px;
-      margin: 16px auto 0;
-      color: var(--text-muted);
-      font-size: 0.88rem;
-      line-height: 1.6;
-    }
-    .paste-hint kbd {
-      padding: 2px 6px;
-      border: 1px solid #D1D5DB;
-      border-radius: 4px;
-      background: #FFFFFF;
-      color: var(--text-main);
-      font-family: inherit;
-      font-size: 0.78rem;
-    }
-    .upload-types {
-      margin: 8px 0 0;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-    }
-    .selected-files {
-      max-width: 600px;
-      margin: 18px auto 0;
-      padding: 12px 16px;
-      border: 1px solid #E5E7EB;
+      margin-top: 22px;
+      padding: 26px;
+      border: 2px dashed var(--bottle);
       border-radius: 10px;
-      background: #FFFFFF;
-      text-align: left;
-    }
-    .selected-heading {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 0.88rem;
-    }
-    .selected-heading button {
-      border: 0;
-      background: transparent;
-      color: var(--primary);
-      cursor: pointer;
-      font: inherit;
-      font-weight: 600;
-    }
-    .selected-files ul {
-      margin: 8px 0 0;
-      padding: 0;
-      list-style: none;
-    }
-    .selected-files li {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 6px 0;
-      border-top: 1px solid #F3F4F6;
-      color: var(--text-muted);
-      font-size: 0.82rem;
-    }
-    .file-name {
-      min-width: 0;
-      overflow-wrap: anywhere;
-      color: var(--text-main);
-    }
-    .file-size {
-      flex-shrink: 0;
-    }
-    .btn {
-      background: linear-gradient(90deg, var(--primary), #7C3AED);
-      color: white;
-      border: none;
-      padding: 14px 28px;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 1rem;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-      transition: transform 0.2s, box-shadow 0.2s;
-      margin-top: 12px;
-    }
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
-    }
-    .btn:disabled {
-      background: #D1D5DB;
-      box-shadow: none;
-      cursor: not-allowed;
-      transform: none;
-    }
-    .lang-row {
-      display: inline-block;
-      margin-top: 14px;
-      color: var(--text-muted);
-      font-size: 0.95rem;
-    }
-    .lang-row select {
-      font-family: inherit;
-      font-size: 0.95rem;
-      margin-left: 8px;
-      padding: 8px 14px;
-      border: 1px solid #C7D2FE;
-      border-radius: 9999px;
-      background: #FFFFFF;
-      color: var(--text-main);
-    }
-    .btn.small {
-      padding: 9px 20px;
-      font-size: 0.9rem;
-      margin: 0 8px 16px 0;
-    }
-    .btn.green {
-      background: linear-gradient(90deg, #059669, #10B981);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-    .disclaimer {
+      background: var(--paper);
       text-align: center;
-      font-size: 0.85rem;
-      color: #DC2626;
-      font-weight: 600;
-      margin-top: 12px;
-      display: flex;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-area:hover, .upload-area.dragging { border-color: var(--marigold); background: var(--marigold-light); }
+    .upload-area:focus-visible { outline: 3px solid var(--bottle); outline-offset: 3px; }
+    .upload-icon { width: 42px; height: 42px; margin: 0 auto 8px; color: var(--bottle); }
+    .upload-title { margin: 0; font-size: 18px; font-weight: 600; }
+    .upload-or { margin: 7px 0; color: var(--mute); font-size: 12px; font-weight: 600; letter-spacing: .12em; }
+    .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+    .file-input:focus-visible + .choose-file { outline: 3px solid var(--bottle); outline-offset: 3px; }
+    .choose-file { display: inline-flex; text-decoration: none; }
+    .paste-hint { margin: 12px 0 0; font-size: 15px; font-weight: 600; }
+    .paste-hint strong { color: var(--bottle); }
+    .upload-types { margin: 6px 0 0; color: var(--mute); font-size: 12px; }
+    .selected-files { max-width: 600px; margin: 18px auto 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); text-align: left; }
+    .selected-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+    .selected-heading button { border: 0; background: transparent; color: var(--bottle); cursor: pointer; font: inherit; font-weight: 600; }
+    .selected-files ul { margin: 8px 0 0; padding: 0; list-style: none; }
+    .selected-files li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-top: 1px solid var(--paper); color: var(--mute); font-size: 13px; }
+    .file-name { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+    .file-size { flex-shrink: 0; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 20px; }
+    .field { display: block; }
+    .field > span { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; }
+    .field input, .field select { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); padding: 10px 12px; }
+    .field input:focus, .field select:focus { border-color: var(--bottle); outline: 2px solid rgba(14, 77, 58, .12); }
+    .field small { display: block; margin-top: 4px; color: var(--mute); }
+    .upload-actions { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 22px; }
+    .btn {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 8px;
+      margin: 0;
+      border: 0;
+      border-radius: 6px;
+      padding: 11px 18px;
+      background: var(--bottle);
+      color: var(--white);
+      font-weight: 600;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: background .2s;
     }
-    .result-section {
-      margin-top: 32px;
-      display: none;
-    }
-    .result-section.active {
-      display: block;
-    }
+    .btn:hover { background: var(--bottle-dark); }
+    .btn:disabled { background: var(--line); color: var(--mute); cursor: not-allowed; }
+    .btn.small { padding: 8px 13px; font-size: 13px; }
+    .btn.green { background: var(--marigold); color: var(--ink); }
+    .btn.green:hover { background: var(--white); }
+    .btn.outline { border: 1px solid var(--line); background: var(--white); color: var(--bottle); }
+    .btn.outline:hover { border-color: var(--bottle); }
+    .disclaimer { display: flex; align-items: center; gap: 7px; max-width: 430px; color: var(--mute); font-size: 12px; line-height: 1.45; }
+    .disclaimer svg { flex: 0 0 auto; color: var(--bottle); }
+    .status { min-height: 24px; margin: 14px 4px; color: var(--bottle); font-size: 14px; font-weight: 500; text-align: center; }
+    .result-section { display: none; margin-top: 26px; }
+    .result-section.active { display: block; }
+    .results-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+    .eyebrow { margin: 0 0 6px; color: var(--bottle); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .status-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: var(--bottle); color: var(--white); font-size: 12px; font-weight: 600; }
+    .status-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--marigold); }
+    .summary-grid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 18px; }
+    .summary-card { padding: 20px; }
+    .card-top, .output-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .card-top h3, .output-header h3 { margin: 0; font-size: 16px; }
+    .card-label { color: var(--mute); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+    .output-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; margin-top: 18px; align-items: start; }
+    .output-card { overflow: hidden; }
+    .output-header { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .output-body { padding: 20px; }
+    .output-actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 20px 20px; }
     .box {
-      background: #F9FAFB;
-      border: 1px solid #E5E7EB;
-      border-radius: 12px;
+      max-height: 300px;
+      margin: 0;
+      overflow-y: auto;
+      border: 0;
+      border-radius: 8px;
+      background: var(--paper);
       padding: 16px;
-      margin-bottom: 16px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.9rem;
+      color: var(--ink);
+      font: 13px/1.7 'Courier New', monospace;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 300px;
-      overflow-y: auto;
     }
-    iframe {
-      width: 100%;
-      height: 500px;
-      border: 1px solid #E5E7EB;
-      border-radius: 12px;
-      margin-bottom: 16px;
+    .summary-box { max-height: none; margin-top: 12px; padding: 0; background: transparent; font-family: 'Hind Siliguri', system-ui, sans-serif; font-size: 17px; font-weight: 500; }
+    .item-output { max-height: 420px; background: var(--bottle); color: var(--white); }
+    .checks-wrap { margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--marigold); background: var(--marigold-light); }
+    .checks-wrap h4 { margin: 0 0 6px; font-size: 14px; }
+    .checks-box { max-height: 180px; padding: 0; background: transparent; font-family: 'Hind Siliguri', system-ui, sans-serif; font-size: 13px; }
+    .pdf-frame { padding: 18px; background: var(--paper); }
+    iframe { display: block; width: 100%; height: 420px; margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
+    .raw-card { margin-top: 18px; }
+    @media (max-width: 900px) {
+      .output-grid { grid-template-columns: 1fr; }
     }
-    .footer {
-      margin-top: 48px;
-      padding-top: 24px;
-      border-top: 2px solid #E5E7EB;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      line-height: 1.6;
-    }
-    .footer strong {
-      color: var(--text-main);
-    }
-    .footer a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .footer a:hover {
-      text-decoration: underline;
-    }
-    .status {
-      text-align: center;
-      color: var(--primary);
-      font-weight: 500;
-      margin: 12px 0;
-      min-height: 24px;
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .upload-card { padding: 18px; }
+      .browser-pill { display: none; }
+      .upload-area { padding: 22px 14px; }
+      .options-grid, .summary-grid { grid-template-columns: 1fr; }
+      .upload-actions { align-items: stretch; flex-direction: column; }
+      .upload-actions .btn { width: 100%; }
+      .results-title { align-items: flex-start; flex-direction: column; }
+      .output-header { padding: 16px; }
+      .output-body { padding: 16px; }
+      iframe { height: 360px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Proforma Invoice OCR Extractor</h1>
-    <p class="page-description">
-      Upload your Proforma Invoice (PDF or image, in Bangla or English). 
-      This tool extracts the text directly in your browser and uses AI to format 
-      the item lines into a clean, standardized, copyable text block.
-    </p>
-
-    <div class="upload-area" id="uploadArea" tabindex="0" role="group" aria-label="Proforma invoice file upload" aria-describedby="uploadHelp">
-      <div class="upload-prompt">
-        <svg class="upload-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M16 35h20a8 8 0 0 0 1-15.9A13 13 0 0 0 12 16 9.5 9.5 0 0 0 16 35Z" />
-          <path d="M24 31V19m-6 6 6-6 6 6" />
-        </svg>
-        <p class="upload-title">Drag &amp; drop your PI files here</p>
-        <p class="upload-or">OR</p>
-        <input type="file" id="fileInput" class="file-input" accept=".pdf,.png,.jpg,.jpeg" multiple />
-        <label for="fileInput" class="btn choose-file">Choose File</label>
-        <p class="paste-hint" id="uploadHelp"><strong>OR</strong> Copy and Paste PI</p>
-        <p class="upload-types">PDF, PNG, JPG or JPEG · multiple files allowed</p>
-      </div>
-      <div class="selected-files" id="selectedFilesPanel" aria-live="polite" hidden>
-        <div class="selected-heading">
-          <strong id="selectedCount"></strong>
-          <button type="button" id="clearFilesBtn">Clear</button>
+    <section class="card upload-card" aria-labelledby="uploadTitle">
+      <div class="section-heading">
+        <span class="step display">01</span>
+        <div>
+          <h2 id="uploadTitle">Upload your proforma invoice</h2>
+          <p>PDF or image, in English or Bangla. Multiple files are allowed.</p>
         </div>
-        <ul id="fileList"></ul>
-      </div>
-      <label class="lang-row">OCR language:
-        <select id="langSelect">
-          <option value="eng" selected>English only (best for English PIs)</option>
-          <option value="ben+eng">English + Bangla</option>
-        </select>
-      </label>
-      <br />
-      <label class="lang-row">Pages to OCR (PDF only):
-        <input type="text" id="pagesInput" placeholder="all pages, or e.g. 1-3, 5" style="font-family:inherit;margin-left:8px;padding:8px 14px;border:1px solid #C7D2FE;border-radius:9999px;width:200px;" />
-      </label>
-      <br />
-      <button id="processBtn" class="btn">Process PI</button>
-      <div class="disclaimer">🔒 No data is stored in the server.</div>
-    </div>
-
-    <div id="status" class="status"></div>
-
-    <div id="resultSection" class="result-section">
-      <h3>PI Number and Date</h3>
-      <div id="piRefText" class="box" style="max-height:none;"></div>
-      <button id="copyRefBtn" class="btn small green">Copy Text</button>
-
-      <h3>Formatted Item Lines</h3>
-      <div id="formattedText" class="box"></div>
-      <button id="copyItemsBtn" class="btn small green">Copy Text</button>
-      <button id="regenBtn" class="btn small">Re-generate</button>
-
-      <div id="checksSection" style="display: none;">
-        <h3>Checks and Notes</h3>
-        <div id="checksText" class="box"></div>
+        <span class="browser-pill">Runs in your browser</span>
       </div>
 
-      <h3>Formatted Beneficiary Info</h3>
-      <div id="beneficiaryText" class="box"></div>
-      <button id="copyBenBtn" class="btn small green">Copy Text</button>
+      <div class="upload-area" id="uploadArea" tabindex="0" role="group" aria-label="Proforma invoice file upload" aria-describedby="uploadHelp">
+        <div class="upload-prompt">
+          <svg class="upload-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 35h20a8 8 0 0 0 1-15.9A13 13 0 0 0 12 16 9.5 9.5 0 0 0 16 35Z" />
+            <path d="M24 31V19m-6 6 6-6 6 6" />
+          </svg>
+          <p class="upload-title">Drag &amp; drop your PI files here</p>
+          <p class="upload-or">OR</p>
+          <input type="file" id="fileInput" class="file-input" accept=".pdf,.png,.jpg,.jpeg" multiple />
+          <label for="fileInput" class="btn choose-file">Choose File</label>
+          <p class="upload-or">OR</p>
+          <p class="paste-hint" id="uploadHelp">Copy and Paste PI</p>
+          <p class="upload-types">PDF, PNG, JPG or JPEG · multiple files allowed</p>
+        </div>
+        <div class="selected-files" id="selectedFilesPanel" aria-live="polite" hidden>
+          <div class="selected-heading">
+            <strong id="selectedCount"></strong>
+            <button type="button" id="clearFilesBtn">Clear</button>
+          </div>
+          <ul id="fileList"></ul>
+        </div>
+      </div>
 
-      <h3>Searchable PDF (select and copy text from here)</h3>
-      <iframe id="pdfViewer" title="Searchable PDF"></iframe>
-      <br />
-      <button id="downloadBtn" class="btn">Download Searchable PDF</button>
+      <div class="options-grid">
+        <label class="field">
+          <span>OCR language</span>
+          <select id="langSelect">
+            <option value="eng" selected>English only (best for English PIs)</option>
+            <option value="ben+eng">English + Bangla</option>
+          </select>
+          <small>Choose both languages for mixed-language invoices.</small>
+        </label>
+        <label class="field">
+          <span>Pages to OCR (PDF only)</span>
+          <input type="text" id="pagesInput" placeholder="all pages, or e.g. 1-3, 5" />
+          <small>Example: 1-3, 5. Leave empty for all pages.</small>
+        </label>
+      </div>
 
-      <h3>Extracted Text (Reliable for copying)</h3>
-      <div id="extractedText" class="box"></div>
-    </div>
+      <div class="upload-actions">
+        <button id="processBtn" class="btn">Process PI <span aria-hidden="true">→</span></button>
+        <div class="disclaimer">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 7.8 7.5 9.5 4.3-1.7 7.5-4.9 7.5-9.5V6L12 3Z" /><path d="m9 12 2 2 4-4" /></svg>
+          No data is stored in the server.
+        </div>
+      </div>
+    </section>
 
-    <div class="footer">
-      <strong>About Us</strong><br />
-      This tool is designed to simplify Proforma Invoice data extraction for trade and banking professionals, 
-      ensuring fast, accurate, and privacy-focused document processing.<br /><br />
-      <strong>Developer:</strong> Pronabesh Bhowmik, CDCS<br />
-      <strong>Email:</strong> <a href="mailto:pbsbd@yahoo.com">pbsbd@yahoo.com</a><br />
-      <strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/pronabesh-bhowmik" target="_blank" rel="noopener noreferrer">Pronabesh Bhowmik</a>
-    </div>
+    <div id="status" class="status" role="status"></div>
+
+    <section id="resultSection" class="result-section" aria-labelledby="resultsTitle">
+      <div class="results-title">
+        <div><p class="eyebrow">OCR output</p><h2 id="resultsTitle">Extracted information</h2></div>
+        <span class="status-badge">Searchable results</span>
+      </div>
+
+      <div class="summary-grid">
+        <article class="card summary-card">
+          <div class="card-top"><h3>PI Number and Date</h3><button id="copyRefBtn" class="btn small outline">Copy Text</button></div>
+          <div id="piRefText" class="box summary-box"></div>
+        </article>
+        <article class="card summary-card">
+          <div class="card-top"><h3>Formatted Beneficiary Info</h3><button id="copyBenBtn" class="btn small outline">Copy Text</button></div>
+          <div id="beneficiaryText" class="box summary-box"></div>
+        </article>
+      </div>
+
+      <div class="output-grid">
+        <article class="card output-card">
+          <div class="output-header"><h3>Formatted Item Lines</h3><span class="card-label">Ready to paste</span></div>
+          <div class="output-body">
+            <div id="formattedText" class="box item-output"></div>
+            <div class="card-actions" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;">
+              <button id="copyItemsBtn" class="btn small green">Copy Text</button>
+              <button id="regenBtn" class="btn small outline">Re-generate</button>
+            </div>
+            <div id="checksSection" class="checks-wrap" style="display: none;">
+              <h4>Checks and Notes</h4>
+              <div id="checksText" class="box checks-box"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card output-card">
+          <div class="output-header"><h3>Searchable PDF</h3><span class="card-label">Select &amp; copy text</span></div>
+          <div class="pdf-frame"><iframe id="pdfViewer" title="Searchable PDF"></iframe></div>
+          <div class="output-actions"><button id="downloadBtn" class="btn">Download Searchable PDF</button></div>
+        </article>
+      </div>
+
+      <article class="card output-card raw-card">
+        <div class="output-header"><h3>Extracted Text</h3><span class="card-label">Reliable copy source</span></div>
+        <div class="output-body"><div id="extractedText" class="box"></div></div>
+      </article>
+    </section>
   </div>
 
   <!-- Local scripts (keep your existing enhance.js and format.js) -->
