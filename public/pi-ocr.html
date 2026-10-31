@@ -62,6 +62,112 @@
     .upload-area:hover {
       border-color: var(--primary);
     }
+    .upload-area:focus-visible {
+      outline: 3px solid var(--primary);
+      outline-offset: 3px;
+    }
+    .upload-area.dragging {
+      border-color: var(--primary);
+      background: #EEF2FF;
+    }
+    .upload-icon {
+      width: 46px;
+      height: 46px;
+      margin: 0 auto 12px;
+      color: var(--primary);
+    }
+    .upload-title {
+      margin: 0;
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .upload-or {
+      margin: 8px 0 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+    }
+    .choose-file {
+      display: inline-block;
+      text-decoration: none;
+    }
+    .file-input:focus-visible + .choose-file {
+      outline: 3px solid var(--primary);
+      outline-offset: 3px;
+    }
+    .paste-hint {
+      max-width: 560px;
+      margin: 16px auto 0;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+    .paste-hint kbd {
+      padding: 2px 6px;
+      border: 1px solid #D1D5DB;
+      border-radius: 4px;
+      background: #FFFFFF;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.78rem;
+    }
+    .upload-types {
+      margin: 8px 0 0;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    .selected-files {
+      max-width: 600px;
+      margin: 18px auto 0;
+      padding: 12px 16px;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      background: #FFFFFF;
+      text-align: left;
+    }
+    .selected-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.88rem;
+    }
+    .selected-heading button {
+      border: 0;
+      background: transparent;
+      color: var(--primary);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+    }
+    .selected-files ul {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .selected-files li {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 6px 0;
+      border-top: 1px solid #F3F4F6;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+    .file-name {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: var(--text-main);
+    }
+    .file-size {
+      flex-shrink: 0;
+    }
     .btn {
       background: linear-gradient(90deg, var(--primary), #7C3AED);
       color: white;
@@ -186,9 +292,26 @@
       the item lines into a clean, standardized, copyable text block.
     </p>
 
-    <div class="upload-area">
-      <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" multiple />
-      <br />
+    <div class="upload-area" id="uploadArea" tabindex="0" role="group" aria-label="Proforma invoice file upload" aria-describedby="uploadHelp">
+      <div class="upload-prompt">
+        <svg class="upload-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 35h20a8 8 0 0 0 1-15.9A13 13 0 0 0 12 16 9.5 9.5 0 0 0 16 35Z" />
+          <path d="M24 31V19m-6 6 6-6 6 6" />
+        </svg>
+        <p class="upload-title">Drag &amp; drop your PI files here</p>
+        <p class="upload-or">OR</p>
+        <input type="file" id="fileInput" class="file-input" accept=".pdf,.png,.jpg,.jpeg" multiple />
+        <label for="fileInput" class="btn choose-file">Choose File</label>
+        <p class="paste-hint" id="uploadHelp"><strong>OR</strong> Copy and Paste PI</p>
+        <p class="upload-types">PDF, PNG, JPG or JPEG · multiple files allowed</p>
+      </div>
+      <div class="selected-files" id="selectedFilesPanel" aria-live="polite" hidden>
+        <div class="selected-heading">
+          <strong id="selectedCount"></strong>
+          <button type="button" id="clearFilesBtn">Clear</button>
+        </div>
+        <ul id="fileList"></ul>
+      </div>
       <label class="lang-row">OCR language:
         <select id="langSelect">
           <option value="eng" selected>English only (best for English PIs)</option>
@@ -239,11 +362,13 @@
       This tool is designed to simplify Proforma Invoice data extraction for trade and banking professionals, 
       ensuring fast, accurate, and privacy-focused document processing.<br /><br />
       <strong>Developer:</strong> Pronabesh Bhowmik, CDCS<br />
-      <strong>Email:</strong> <a href="mailto:pbsbd@yahoo.com">pbsbd@yahoo.com</a>
+      <strong>Email:</strong> <a href="mailto:pbsbd@yahoo.com">pbsbd@yahoo.com</a><br />
+      <strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/pronabesh-bhowmik" target="_blank" rel="noopener noreferrer">Pronabesh Bhowmik</a>
     </div>
   </div>
 
   <!-- Local scripts (keep your existing enhance.js and format.js) -->
+  <script src="upload.js"></script>
   <script src="enhance.js"></script>
   <script src="tablelines.js"></script>
   <script src="format.js"></script>
@@ -274,6 +399,131 @@
 
     const piRefTextEl = document.getElementById('piRefText');
     const pagesInput = document.getElementById('pagesInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const selectedFilesPanel = document.getElementById('selectedFilesPanel');
+    const selectedCount = document.getElementById('selectedCount');
+    const fileListEl = document.getElementById('fileList');
+    const clearFilesBtn = document.getElementById('clearFilesBtn');
+    const { partitionUploadFiles, filesFromClipboard } = UploadHelpers;
+
+    let selectedFiles = [];
+    let dragDepth = 0;
+
+    function formatFileSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '';
+      if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function renderSelectedFiles() {
+      fileListEl.textContent = '';
+      selectedFilesPanel.hidden = selectedFiles.length === 0;
+      selectedCount.textContent = `${selectedFiles.length} ${selectedFiles.length === 1 ? 'file' : 'files'} ready for OCR`;
+      selectedFiles.forEach((file) => {
+        const item = document.createElement('li');
+        const name = document.createElement('span');
+        const size = document.createElement('span');
+        name.className = 'file-name';
+        size.className = 'file-size';
+        name.textContent = file.name || 'Pasted attachment';
+        size.textContent = formatFileSize(file.size);
+        item.append(name, size);
+        fileListEl.appendChild(item);
+      });
+    }
+
+    function setSelectedFiles(fileList, source) {
+      const { accepted, rejected } = partitionUploadFiles(fileList);
+      selectedFiles = accepted;
+      fileInput.value = ''; // File objects remain available; choosing the same file again still fires change.
+      renderSelectedFiles();
+      if (!accepted.length) {
+        status.textContent = rejected.length
+          ? 'No supported files found. Choose PDF, PNG, JPG or JPEG files.'
+          : 'Please choose at least one file.';
+        return;
+      }
+      const method = source === 'pasted' ? 'pasted from the clipboard' : source === 'dropped' ? 'added by drag and drop' : 'selected';
+      status.textContent = `${accepted.length} ${accepted.length === 1 ? 'file' : 'files'} ${method} and ready for OCR.` +
+        (rejected.length ? ` ${rejected.length} unsupported ${rejected.length === 1 ? 'file was' : 'files were'} skipped.` : '');
+    }
+
+    fileInput.addEventListener('change', () => setSelectedFiles(fileInput.files, 'selected'));
+    clearFilesBtn.addEventListener('click', () => {
+      selectedFiles = [];
+      fileInput.value = '';
+      renderSelectedFiles();
+      status.textContent = 'File selection cleared.';
+    });
+
+    // Clicking the instructions focuses the upload box for a subsequent Ctrl+V / Cmd+V.
+    uploadArea.addEventListener('click', (event) => {
+      if (!event.target.closest('button, input, select, label, a')) uploadArea.focus();
+    });
+
+    function hasDraggedFiles(event) {
+      return Array.from(event.dataTransfer && event.dataTransfer.types || []).includes('Files');
+    }
+
+    uploadArea.addEventListener('dragenter', (event) => {
+      if (!hasDraggedFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepth += 1;
+      uploadArea.classList.add('dragging');
+    });
+    uploadArea.addEventListener('dragover', (event) => {
+      if (!hasDraggedFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = 'copy';
+      uploadArea.classList.add('dragging');
+    });
+    uploadArea.addEventListener('dragleave', (event) => {
+      if (!dragDepth) return;
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) uploadArea.classList.remove('dragging');
+    });
+    uploadArea.addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepth = 0;
+      uploadArea.classList.remove('dragging');
+      const files = Array.from(event.dataTransfer && event.dataTransfer.files || []);
+      if (files.length) setSelectedFiles(files, 'dropped');
+      else status.textContent = 'No attachment file was found in that drag operation. Try Choose File instead.';
+    });
+
+    // Stop an accidental drop outside the upload box from navigating away to the file.
+    document.addEventListener('dragover', (event) => {
+      if (hasDraggedFiles(event)) event.preventDefault();
+    });
+    document.addEventListener('drop', (event) => {
+      if (hasDraggedFiles(event)) event.preventDefault();
+    });
+
+    // Outlook can provide an actual attachment File on the clipboard. If it provides only a link
+    // or message content, the browser cannot turn that into a file; leave the other upload methods intact.
+    document.addEventListener('paste', (event) => {
+      const target = event.target;
+      const isEditingText = target && typeof target.closest === 'function' &&
+        target.closest('textarea, input:not([type="file"]), [contenteditable="true"]');
+      if (isEditingText) return;
+
+      const files = filesFromClipboard(event.clipboardData);
+      if (files.length) {
+        event.preventDefault();
+        setSelectedFiles(files, 'pasted');
+        uploadArea.focus();
+        return;
+      }
+
+      if (uploadArea.contains(document.activeElement) || uploadArea.contains(target)) {
+        event.preventDefault();
+        status.textContent = 'No attachment file was found on the clipboard. In Outlook, copy the attachment itself—not the email message—or use drag and drop / Choose File.';
+      }
+    });
 
     // "1-3, 5" -> Set{1,2,3,5}; empty -> null (all pages); invalid -> undefined
     function parsePages(s) {
@@ -386,7 +636,7 @@
     document.getElementById('copyRefBtn').addEventListener('click', (e) => copyText(piRefTextEl, e.currentTarget));
 
     processBtn.addEventListener('click', async () => {
-      const files = Array.from(fileInput.files);
+      const files = Array.from(selectedFiles);
       if (files.length === 0) {
         status.textContent = 'Please select at least one file.';
         return;
