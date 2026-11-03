@@ -141,6 +141,15 @@
     .pdf-frame { padding: 18px; background: var(--paper); }
     iframe { display: block; width: 100%; height: 420px; margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
     .raw-card { margin-top: 18px; }
+    .hs-check-status { padding: 14px 16px; border-left: 4px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--mute); }
+    .hs-check-status[data-state="success"] { border-color: #21875D; background: #EDF8F1; color: #176B45; }
+    .hs-check-status[data-state="danger"] { border-color: #C62828; background: #FDECEC; color: #A61B1B; }
+    .hs-check-message { margin: 0; font-weight: 600; line-height: 1.5; }
+    .hs-check-matches { margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid currentColor; list-style: none; }
+    .hs-check-matches li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 4px 0; font-size: 14px; }
+    .hs-check-code { font: 600 14px/1.5 'Courier New', monospace; }
+    .hs-check-category { text-align: right; }
+    .hs-check-note { margin: 10px 0 0; color: var(--mute); font-size: 12px; }
     @media (max-width: 900px) {
       .output-grid { grid-template-columns: 1fr; }
     }
@@ -251,6 +260,17 @@
               <h4>Checks and Notes</h4>
               <div id="checksText" class="box checks-box"></div>
             </div>
+          </div>
+        </article>
+
+        <article class="card output-card" aria-labelledby="hsCheckTitle">
+          <div class="output-header"><h3 id="hsCheckTitle">Bangladesh HS Code Check</h3><span class="card-label">Controlled &amp; Banned goods</span></div>
+          <div class="output-body">
+            <div id="hsCheckStatus" class="hs-check-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true">
+              <p id="hsCheckMessage" class="hs-check-message">HS code check will appear with the formatted results.</p>
+              <ul id="hsCheckMatches" class="hs-check-matches" hidden></ul>
+            </div>
+            <p class="hs-check-note">Exact first-four-digit match against the supplied import-control list.</p>
           </div>
         </article>
 
@@ -674,5 +694,6 @@
       }
     });
   </script>
+  <script src="hs-code-check.js"></script>
 </body>
 </html>
