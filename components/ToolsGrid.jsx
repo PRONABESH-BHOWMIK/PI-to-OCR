@@ -9,7 +9,7 @@ const tools = [
   { name: 'Credit report analysis', description: 'Summarize credit reports and flag the points a reviewer should check.', category: 'Document processing', status: 'coming' },
   { name: 'Bill of Lading Checker', description: 'Check bills of lading for discrepancies before presentation.', category: 'Document processing', status: 'coming' },
   { name: 'LC Draft Generator', description: 'Draft Letter of Credit text with proper SWIFT formatting.', category: 'Generators', status: 'coming' },
-  { name: 'AutoMailer', description: 'Send routine trade finance emails from saved templates.', category: 'Automation', status: 'coming' },
+  { name: 'AutoMailer', description: 'Automate routine trade finance emails with review-before-send tools for your Windows and Outlook workflow.', category: 'Automation', status: 'live', href: '/tools/automailer', subtools: ['Accepted Bill Payment Reminder'], subtoolsLabel: 'Available tools' },
   { name: 'PII entry helper', description: 'Speed up entering customer identity details from source documents.', category: 'Automation', status: 'coming' },
   { name: 'HS Code Finder', description: 'Find the right HS code for a product.', category: 'Lookup', status: 'coming' },
   { name: 'Bank SWIFT/BIC Code Finder', description: "Look up a bank's SWIFT/BIC code by name, city or country.", category: 'Lookup', status: 'coming' },
@@ -70,7 +70,7 @@ export default function ToolsGrid({ filterable = false }) {
                 <p className="mt-3 max-w-xl text-white/80">{t.description}</p>
                 {t.subtools && (
                   <div className="mt-5 max-w-xl border-l-2 border-marigold pl-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/55">Available calculators</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/55">{t.subtoolsLabel || 'Available calculators'}</p>
                     <ul className="mt-2 space-y-1.5">
                       {t.subtools.map((subtool) => (
                         <li key={subtool} className="flex items-center gap-2 font-medium text-white">

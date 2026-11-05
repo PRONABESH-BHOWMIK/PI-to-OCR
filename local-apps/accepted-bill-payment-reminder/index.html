@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accepted Bill Payment Reminder | AutoMailer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,100..900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="lib/xlsx.full.min.js"></script>
+<script>window.XLSX || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>')</script>
+<style>
+  :root { --navy:#0E4D3A; --navy-2:#0A3A2B; --bg:#F4F6F5; --line:#D9E0DC; --text:#16322A; --muted:#5C6F67;
+          --green:#176B45; --green-bg:#EDF8F1; --red:#A61B1B; --red-bg:#FDECEC; --amber:#8A5A00; --amber-bg:#FFFBEB; --blue-bg:#FFFBEB; --marigold:#F2B705; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Hind Siliguri", system-ui, sans-serif; background:var(--bg); color:var(--text); font-size:14px; }
+  .top { background:#fff; border-bottom:1px solid var(--line); padding:14px 28px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:5; }
+  .logo { width:38px; height:38px; border-radius:6px; background:var(--marigold); color:var(--text); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; letter-spacing:.5px; }
+  .top h1 { font-size:20px; margin:0; font-family:Archivo,system-ui,sans-serif; font-stretch:75%; font-weight:800; }
+  .top p { margin:1px 0 0; font-size:12px; color:var(--muted); }
+  .pill { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12px; padding:6px 12px; border-radius:20px; background:#f1f3f7; color:var(--muted); cursor:pointer; border:1px solid var(--line); }
+  .dot { width:8px; height:8px; border-radius:50%; background:#a0a8b6; }
+  .pill.ok { background:var(--green-bg); color:var(--green); border-color:#cbe8d6; } .pill.ok .dot { background:var(--green); }
+  .pill.err { background:var(--red-bg); color:var(--red); border-color:#f6cfca; } .pill.err .dot { background:var(--red); }
+  main { max-width:1080px; margin:24px auto 60px; padding:0 20px; }
+  .grid { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; }
+  @media (max-width:820px){ .grid { grid-template-columns:1fr; } }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 14px; font-weight:600; }
+  .pick { display:flex; align-items:center; gap:12px; border:1.5px dashed #c9d3e1; border-radius:10px; padding:12px 14px; cursor:pointer; margin-bottom:10px; background:#fafbfd; transition:.15s; }
+  .pick:hover { border-color:var(--navy-2); background:#f4f8fd; }
+  .pick input { display:none; }
+  .pick .ic { width:34px; height:34px; border-radius:8px; background:var(--blue-bg); color:var(--navy); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0; }
+  .pick b { display:block; font-size:13px; font-weight:600; }
+  .pick span { font-size:12px; color:var(--muted); word-break:break-all; }
+  .pick.done { border-style:solid; border-color:#bfe0cb; background:#f5fbf7; }
+  .pick.done .ic { background:var(--green-bg); color:var(--green); }
+  .seg { display:inline-flex; background:#f1f3f7; border-radius:8px; padding:3px; margin-bottom:14px; }
+  .seg button { border:0; background:transparent; padding:6px 14px; border-radius:6px; font-size:13px; color:var(--muted); cursor:pointer; }
+  .seg button.on { background:#fff; color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.08); font-weight:600; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+  input[type=date], input[type=text], select { height:36px; padding:0 10px; border:1px solid #cfd7e3; border-radius:8px; font-size:14px; font-family:inherit; background:#fff; color:var(--text); }
+  .check { display:flex; align-items:flex-start; gap:8px; font-size:13px; margin-top:14px; color:#3a4456; }
+  .btn { height:38px; padding:0 16px; border-radius:8px; border:1px solid #cfd7e3; background:#fff; color:var(--text); font-size:13px; font-family:inherit; cursor:pointer; font-weight:500; }
+  .btn:hover { background:#f4f6fa; }
+  .btn.primary { background:var(--navy); border-color:var(--navy); color:#fff; }
+  .btn.primary:hover { background:var(--navy-2); }
+  .btn.go { background:var(--marigold); border-color:var(--marigold); color:var(--text); }
+  .btn.go:hover { background:#DCA504; }
+  .btn.sm { height:30px; padding:0 11px; font-size:12px; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .big { width:100%; height:46px; font-size:15px; }
+  .msg { margin-top:12px; padding:10px 14px; border-radius:8px; font-size:13px; display:none; }
+  .msg.ok { display:block; background:var(--green-bg); color:var(--green); }
+  .msg.err { display:block; background:var(--red-bg); color:var(--red); }
+  .msg.warn { display:block; background:var(--amber-bg); color:var(--amber); }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  @media (max-width:820px){ .stats { grid-template-columns:repeat(2,1fr); } }
+  .stat { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat .t { font-size:12px; color:var(--muted); }
+  .stat .n { font-size:24px; font-weight:600; margin-top:2px; }
+  .bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .bar .sp { flex:1; }
+  .list { background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .item { display:grid; grid-template-columns:28px 1fr auto auto auto; gap:14px; align-items:center; padding:12px 16px; border-bottom:1px solid #eef1f5; }
+  .item:last-child { border-bottom:0; }
+  .item:hover { background:#fafbfd; }
+  @media (max-width:820px){ .item { grid-template-columns:28px 1fr; } .item .tags, .item .acts, .item .stt { grid-column:2; } }
+  .who b { font-size:14px; font-weight:600; }
+  .who div { font-size:12px; color:var(--muted); margin-top:2px; word-break:break-all; }
+  .who .err { color:var(--red); }
+  .tags { display:flex; gap:6px; }
+  .tag { font-size:11px; padding:3px 9px; border-radius:20px; font-weight:600; white-space:nowrap; }
+  .t-local { background:var(--blue-bg); color:var(--navy); } .t-foreign { background:#F4F6F5; color:#0E4D3A; }
+  .t-nostro { background:var(--amber-bg); color:var(--amber); } .t-count { background:#f1f3f7; color:#4a5466; }
+  .s-pending { background:#f1f3f7; color:#5d6676; } .s-sending { background:var(--blue-bg); color:var(--navy); }
+  .s-sent { background:var(--green-bg); color:var(--green); } .s-opened { background:var(--blue-bg); color:var(--navy); }
+  .s-failed { background:var(--red-bg); color:var(--red); }
+  .acts { display:flex; gap:6px; }
+  .empty { padding:28px; text-align:center; color:var(--muted); }
+  details { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:12px; }
+  summary { cursor:pointer; font-weight:600; font-size:13px; }
+  table.data { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+  table.data th { text-align:left; padding:7px 8px; background:#f6f8fb; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line); }
+  table.data td { padding:7px 8px; border-bottom:1px solid #f0f2f6; word-break:break-word; }
+  .progress { height:4px; background:#e9edf3; display:none; }
+  .progress div { height:100%; width:0; background:var(--green); transition:width .2s; }
+  .modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
+  .modal.on { display:flex; }
+  .sheet { background:#fff; border-radius:14px; width:min(960px,100%); max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+  .sheet-h { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; gap:12px; }
+  .sheet-h .meta { flex:1; font-size:13px; line-height:1.6; word-break:break-all; }
+  .sheet-h .meta b { color:var(--muted); font-weight:500; display:inline-block; width:62px; }
+  .sheet iframe { flex:1; border:0; min-height:420px; width:100%; }
+  .sheet-f { padding:12px 18px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:8px; }
+  .x { border:0; background:transparent; font-size:22px; line-height:1; cursor:pointer; color:var(--muted); }
+  .banner { background:var(--amber-bg); color:var(--amber); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px; display:none; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">MTB</div>
+  <div><h1>Accepted Bill Payment Reminder</h1><p>AutoMailer · Integrated and Centralized MITS Operations Division</p></div>
+  <div class="pill" id="olPill" title="Click to re-check Outlook"><span class="dot"></span><span id="olText">Checking Outlook…</span></div>
+</div>
+
+<main>
+  <div class="banner" id="fileBanner">This page was opened directly. Close it and double-click <b>Start_BTB_Emailer.bat</b> so the app can send through Outlook.</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Files</h2>
+      <label class="pick" id="pickReg">
+        <input type="file" id="regFiles" accept=".xls,.xlsx" multiple>
+        <div class="ic">XLS</div>
+        <div><b>LC registers</b><span id="regName">Islamic, Dhaka and Chattogram — select all together</span></div>
+      </label>
+      <label class="pick" id="pickEmail">
+        <input type="file" id="emailFile" accept=".xls,.xlsx,.csv">
+        <div class="ic">@</div>
+        <div><b>Email list</b><span id="emailName">Applicant, To (foreign), To (local), CC</span></div>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>Maturity date</h2>
+      <div class="seg"><button id="segSingle" class="on">Single date</button><button id="segRange">Date range</button></div>
+      <div class="row">
+        <div class="field" id="fSingle"><label for="dSingle">Date</label><input type="date" id="dSingle"></div>
+        <div class="field" id="fFrom" style="display:none"><label for="dFrom">From</label><input type="date" id="dFrom"></div>
+        <div class="field" id="fTo" style="display:none"><label for="dTo">To</label><input type="date" id="dTo"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="makeNostro"> Also create Nostro emails for foreign bills with a Nostro A/C</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Send from</h2>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:240px"><label for="account">Outlook account</label>
+        <select id="account" style="width:100%"><option value="">Default Outlook account</option></select></div>
+      <div class="field" style="flex:1;min-width:240px"><label for="onBehalf">On behalf of (optional shared mailbox)</label>
+        <input type="text" id="onBehalf" style="width:100%" placeholder="team.mailbox@mutualtrustbank.com"></div>
+    </div>
+  </div>
+
+  <button class="btn primary big" id="processBtn">Find bills and prepare emails</button>
+  <div class="msg" id="processMsg"></div>
+
+  <section id="results" style="display:none;margin-top:24px">
+    <div class="stats" id="stats"></div>
+    <div id="nfBox"></div>
+    <details><summary>Matched bills</summary><div id="billsTbl"></div></details>
+    <details><summary>File details</summary><div id="logsTbl"></div></details>
+
+    <div class="list">
+      <div class="bar">
+        <label class="check" style="margin:0"><input type="checkbox" id="selAll" checked> Select all</label>
+        <span class="sp"></span>
+        <button class="btn sm" id="exportBtn">Export bills to Excel</button>
+        <button class="btn go" id="sendSel">Send selected</button>
+      </div>
+      <div class="progress" id="progress"><div id="progressBar"></div></div>
+      <div id="items"></div>
+    </div>
+    <div class="msg" id="sendMsg"></div>
+  </section>
+</main>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="sheet-h"><div class="meta" id="mMeta"></div><button class="x" id="mClose" aria-label="Close">×</button></div>
+    <iframe id="mFrame" title="Email preview"></iframe>
+    <div class="sheet-f"><button class="btn" id="mOpen">Open in Outlook</button><button class="btn go" id="mSend">Send now</button></div>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIGURATION ===================== */
+const TOKEN = "__BTB_TOKEN__";
+const LC_CODE_MAP = { "06":"BTB PAYMENT-FOREIGN", "25":"BTB PAYMENT-FOREIGN", "04":"BTB PAYMENT-LOCAL", "12":"BTB PAYMENT-LOCAL", "27":"BTB PAYMENT-LOCAL" };
+const NON_ISLAMIC_COLS = { lc_number:15, applicant_name:3, bill_ref:2, bill_currency:13, bill_value:11, maturity:10, beneficiary:6, nostro_ac:18 };
+const ISLAMIC_COLS     = { lc_number:14, applicant_name:2, bill_ref:1, bill_currency:9,  bill_value:10, maturity:8,  beneficiary:5, nostro_ac:19 };
+const SEND_DELAY_MS = 800;
+
+/* ===================== HELPERS ===================== */
+const MONS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MON_IDX = Object.fromEntries(MONS.map((m,i)=>[m.toLowerCase(),i+1]));
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const todayKey = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+let STATE = { bills:[], queue:[], notFound:[], logs:[], from:"", to:"" };
+let SENDING = false, MODE = "single", OUTLOOK_OK = false, MODAL_I = -1;
+
+function clean(v){ if(v===null||v===undefined) return ""; if(typeof v==="number") return isFinite(v)?String(v):""; const s=String(v).trim(); return ["nan","none","nat","null"].includes(s.toLowerCase())?"":s; }
+const oneSpace = v => clean(v).split(/\s+/).filter(Boolean).join(" ");
+const normName = v => oneSpace(v).toUpperCase();
+function fmtAmount(v){ const s=clean(v), r=s.replace(/[,\s]/g,""); if(!/^-?\d*\.?\d+$/.test(r)) return s; return Number(r).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function ymd(y,m,d){ if(y<100) y+=2000; if(!(m>=1&&m<=12&&d>=1&&d<=31)) return null; return `${y}-${pad(m)}-${pad(d)}`; }
+function parseDate(v){
+  if(v===null||v===undefined||v==="") return null;
+  if(typeof v==="number"){ if(v>20000&&v<80000){ const dt=new Date(Date.UTC(1899,11,30)+Math.floor(v)*86400000); return ymd(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate()); } return null; }
+  const s=String(v).trim(); let m;
+  if(/^\d{5}(\.\d+)?$/.test(s)) return parseDate(parseFloat(s));
+  if((m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return ymd(+m[1],+m[2],+m[3]);
+  if((m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/))){ let d=+m[1],mo=+m[2]; if(mo>12&&d<=12)[d,mo]=[mo,d]; return ymd(+m[3],mo,d); }
+  if((m=s.match(/^(\d{1,2})[-\s]([A-Za-z]{3})[A-Za-z]*[-\s,]+(\d{2,4})$/))){ const mo=MON_IDX[m[2].toLowerCase()]; return mo?ymd(+m[3],mo,+m[1]):null; }
+  return null;
+}
+const showDate = k => { const [y,m,d]=k.split("-"); return `${d}-${MONS[+m-1]}-${y}`; };
+const extractCode = lc => { const m=clean(lc).match(/222[089]\d{2}(\d{2})/); return m?m[1]:null; };
+const getCell = (row,i) => (row&&i<row.length)?clean(row[i]):"";
+const splitEmails = s => (s||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+
+async function readRows(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:"array",cellDates:false});
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:true});
+}
+function detectType(name,rows){
+  for(let i=0;i<Math.min(10,rows.length);i++) if((rows[i]||[]).map(clean).join(" ").toLowerCase().includes("islamic banking")) return "ISLAMIC";
+  const all=rows.map(r=>(r||[]).map(clean).join(" ")).join(" ");
+  const dha=all.split("2228").length-1, ctg=all.split("2220").length-1;
+  if(dha>=ctg&&dha>0) return "DHAKA"; if(ctg>dha) return "CHATTOGRAM";
+  const n=name.toLowerCase(); return (n.includes("ctg")||n.includes("chatt")||n.includes("chittagong"))?"CHATTOGRAM":"DHAKA";
+}
+function findHeader(rows){
+  const kws=["lc number","lc no","maturity","acceptance date","applicant","bill ref","beneficiary","currency"]; let best=null,bh=0;
+  for(let i=0;i<Math.min(30,rows.length);i++){ const t=(rows[i]||[]).map(v=>clean(v).toLowerCase()).join(" "); const h=kws.filter(k=>t.includes(k)).length; if(h>=2) return i; if(h>bh){best=i;bh=h;} }
+  return best;
+}
+
+/* ===================== LOAD FILES ===================== */
+async function loadRegister(file,from,to){
+  const rows=await readRows(file), type=detectType(file.name,rows);
+  const cols=type==="ISLAMIC"?ISLAMIC_COLS:NON_ISLAMIC_COLS;
+  const label=type==="ISLAMIC"?"MTB Islamic Banking":`Non-Islamic (${type[0]+type.slice(1).toLowerCase()})`;
+  let h=findHeader(rows); if(h===null) h=5;
+  const recs=[]; let sc=0, sd=0;
+  for(const row of rows.slice(h+1)){
+    if(!row) continue;
+    const lc=getCell(row,cols.lc_number); if(!lc) continue;
+    const mt=LC_CODE_MAP[extractCode(lc)]; if(!mt){sc++;continue;}
+    const mat=parseDate(row[cols.maturity]); if(!mat||mat<from||mat>to){sd++;continue;}
+    recs.push({ source:label, mail_type:mt, lc_number:lc, applicant_name:oneSpace(row[cols.applicant_name]),
+      bill_ref:getCell(row,cols.bill_ref), bill_currency:getCell(row,cols.bill_currency), bill_value:fmtAmount(row[cols.bill_value]),
+      maturity:showDate(mat), beneficiary:getCell(row,cols.beneficiary), nostro_ac:getCell(row,cols.nostro_ac) });
+  }
+  return { recs, log:[file.name,label,h+1,recs.length,sc,sd] };
+}
+async function loadEmailList(file){
+  const rows=await readRows(file); if(!rows.length) throw new Error("The email list is empty.");
+  const heads=(rows[0]||[]).map(h=>clean(h).toLowerCase()), ix={};
+  heads.forEach((h,i)=>{
+    if((h.includes("applicant")||h.includes("customer"))&&ix.applicant===undefined) ix.applicant=i;
+    else if(h.includes("foreign")&&ix.to_foreign===undefined) ix.to_foreign=i;
+    else if(h.includes("local")&&ix.to_local===undefined) ix.to_local=i;
+    else if((h==="cc"||h.startsWith("cc"))&&ix.cc===undefined) ix.cc=i;
+  });
+  ["applicant","to_foreign","to_local","cc"].forEach((k,p)=>{ if(ix[k]===undefined) ix[k]=p; });
+  const d={};
+  for(const r of rows.slice(1)){ if(!r) continue; const n=normName(r[ix.applicant]); if(n) d[n]={to_foreign:getCell(r,ix.to_foreign),to_local:getCell(r,ix.to_local),cc:getCell(r,ix.cc)}; }
+  return d;
+}
+
+/* ===================== BUILD EMAILS ===================== */
+function buildTable(rows,nostro){
+  const hs=["LC Number","Applicant Name","Bill Ref","Bill Currency","Bill Value","Maturity Date","Beneficiary Name"]; if(nostro) hs.push("Nostro A/C");
+  const th="background-color:#003366;color:#ffffff;padding:9px 12px;border:1px solid #aaaaaa;font-size:12px;text-align:left;white-space:nowrap;";
+  const td="padding:8px 12px;border:1px solid #cccccc;font-size:12px;color:#111111;vertical-align:top;";
+  let h='<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"><thead><tr>'+hs.map(x=>`<th style="${th}">${x}</th>`).join("")+"</tr></thead><tbody>";
+  rows.forEach((r,i)=>{ const bg=i%2?"background-color:#eef3fa;":"background-color:#ffffff;"; const c=[r.lc_number,r.applicant_name,r.bill_ref,r.bill_currency,r.bill_value,r.maturity,r.beneficiary]; if(nostro) c.push(r.nostro_ac); h+=`<tr style="${bg}">`+c.map(x=>`<td style="${td}">${esc(x)}</td>`).join("")+"</tr>"; });
+  return h+"</tbody></table>";
+}
+function buildEmail(mt,table,nostro){
+  let subject,intro;
+  if(nostro){ subject="Request to placement of fund to respective Nostro A/c for payment of accepted bills."; intro="We request you to please quote rate &amp; placement of required funds of the following accepted bill(s) to make payment on the due date:"; }
+  else if(mt==="BTB PAYMENT-FOREIGN"){ subject="Request to arrange fund for payment of accepted bills (BTB-FOREIGN)."; intro="We request you to arrange required funds for the following accepted bill(s) to make payment today:"; }
+  else { subject="Request to arrange fund for payment of accepted bills (BTB-LOCAL)."; intro="We request you to arrange required funds for the following accepted bill(s) to make payment today:"; }
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;font-size:13px;color:#111111;line-height:1.7;margin:0;padding:20px;">'+
+    '<p>Dear Sir,</p><p>Please accept best compliments from MTB Integrated and Centralized MITS Operations Division, Dhaka.</p>'+
+    `<p>${intro}</p><br>${table}<br>`+
+    '<p>This is for your kind information and necessary action.</p><p>Thank you.<br>Best regards,</p></body></html>';
+  return { subject, html };
+}
+function buildQueue(bills,dict,mk){
+  const g=new Map(); for(const b of bills){ const k=b.applicant_name+"||"+b.mail_type; if(!g.has(k)) g.set(k,[]); g.get(k).push(b); }
+  const q=[], nf=[];
+  for(const rows of g.values()){
+    const ap=rows[0].applicant_name, mt=rows[0].mail_type, rec=dict[normName(ap)]||{};
+    if(rec.to_local) q.push({ap,mt,kind:"Primary",to:rec.to_local,cc:rec.cc||"",...buildEmail(mt,buildTable(rows,false),false),n:rows.length,status:"Pending",error:""});
+    else nf.push([ap,mt,rows.length,"Local 'To' email"]);
+    if(mk&&mt==="BTB PAYMENT-FOREIGN"){ const nr=rows.filter(r=>r.nostro_ac); if(nr.length){
+      if(rec.to_foreign) q.push({ap,mt,kind:"Nostro",to:rec.to_foreign,cc:rec.cc||"",...buildEmail(mt,buildTable(nr,true),true),n:nr.length,status:"Pending",error:""});
+      else nf.push([ap,mt,nr.length,"Foreign 'To' email (Nostro)"]); } }
+  }
+  return { q, nf };
+}
+
+/* ===================== OUTLOOK (via local server) ===================== */
+const IS_SERVER = location.protocol.startsWith("http");
+async function api(path,payload){
+  let res;
+  try { res=await fetch(path,{ method:payload?"POST":"GET", headers:{"Content-Type":"application/json","X-BTB-Token":TOKEN}, body:payload?JSON.stringify(payload):undefined }); }
+  catch(e){ throw new Error("The app server isn't running. Start it with Start_BTB_Emailer.bat."); }
+  const data=await res.json().catch(()=>({ok:false,error:"Unexpected reply from the app server."}));
+  if(!data.ok) throw new Error(data.error||"Request failed.");
+  return data;
+}
+function setPill(type,text){ $("olPill").className="pill "+type; $("olText").textContent=text; }
+async function checkOutlook(){
+  if(!IS_SERVER){ $("fileBanner").style.display="block"; setPill("err","App server not running"); OUTLOOK_OK=false; return; }
+  setPill("","Checking Outlook…");
+  try{
+    const r=await api("/api/status"); const accts=[].concat(r.accounts||[]);
+    const saved=localStorage.getItem("btb_account")||"";
+    $("account").innerHTML='<option value="">Default Outlook account</option>'+accts.map(a=>`<option ${a===saved?"selected":""}>${esc(a)}</option>`).join("");
+    OUTLOOK_OK=true; setPill("ok", accts.length?`Outlook connected · ${accts.length} account(s)`:"Outlook connected");
+  }catch(e){ OUTLOOK_OK=false; setPill("err","Outlook not available"); showMsg($("processMsg"),"err",esc(e.message)+" Make sure Outlook is installed and set up on this PC, then click the status at the top right."); }
+}
+async function deliver(i,mode){
+  const it=STATE.queue[i];
+  it.status=mode==="display"?"Opening":"Sending"; it.error=""; updateItem(i);
+  try{
+    await api("/api/send",{ mode, to:splitEmails(it.to).join("; "), cc:splitEmails(it.cc).join("; "), subject:it.subject, html:it.html,
+      account:$("account").value, onBehalf:$("onBehalf").value.trim(), applicant:it.ap, kind:it.kind, bills:it.n });
+    it.status=mode==="display"?"Opened":"Sent"; updateItem(i); return true;
+  }catch(e){ it.status="Failed"; it.error=e.message; updateItem(i); throw e; }
+}
+async function sendMany(idx){
+  const msg=$("sendMsg");
+  if(!OUTLOOK_OK) return showMsg(msg,"err","Outlook isn't connected. Click the status at the top right to re-check.");
+  const todo=idx.filter(i=>STATE.queue[i].status!=="Sent"), skipped=idx.length-todo.length;
+  if(!todo.length) return showMsg(msg,"warn","The selected emails have already been sent.");
+  const from=$("onBehalf").value.trim()||$("account").value||"your default Outlook account";
+  if(!confirm(`Send ${todo.length} email(s) through Outlook from ${from}?`+(skipped?`\n\n${skipped} already-sent email(s) will be skipped.`:""))) return;
+  SENDING=true; lockUI(true); $("progress").style.display="block"; $("progressBar").style.width="0%";
+  let ok=0, fail=0, last="";
+  for(let n=0;n<todo.length;n++){
+    showMsg(msg,"ok",`Sending ${n+1} of ${todo.length}…`);
+    try{ await deliver(todo[n],"send"); ok++; } catch(e){ fail++; last=e.message; if(/server isn't running|Session expired/i.test(e.message)) break; }
+    $("progressBar").style.width=`${Math.round((n+1)/todo.length*100)}%`;
+    if(n<todo.length-1) await sleep(SEND_DELAY_MS);
+  }
+  SENDING=false; lockUI(false);
+  if(fail) showMsg(msg,"err",`Sent ${ok}, failed ${fail}. Last error: ${esc(last)}`);
+  else showMsg(msg,"ok",`All ${ok} email(s) sent. Copies are in Outlook's Sent Items.`);
+}
+function lockUI(on){
+  ["processBtn","sendSel","mSend","mOpen"].forEach(id=>$(id).disabled=on);
+  document.querySelectorAll("[data-send],[data-open]").forEach(b=>b.disabled=on||STATE.queue[+b.dataset.i].status==="Sent");
+}
+
+/* ===================== SCREEN ===================== */
+function showMsg(el,t,x){ el.className="msg "+t; el.innerHTML=x; }
+function tbl(h,rows){ return '<table class="data"><thead><tr>'+h.map(x=>`<th>${x}</th>`).join("")+"</tr></thead><tbody>"+rows.map(r=>"<tr>"+r.map(c=>`<td>${esc(c)}</td>`).join("")+"</tr>").join("")+"</tbody></table>"; }
+function typeTag(q){ return q.kind==="Nostro"?'<span class="tag t-nostro">Nostro</span>':q.mt==="BTB PAYMENT-FOREIGN"?'<span class="tag t-foreign">Foreign</span>':'<span class="tag t-local">Local</span>'; }
+
+function render(){
+  const {bills,queue,nf,logs}=STATE;
+  $("results").style.display="block"; $("sendMsg").className="msg"; $("progress").style.display="none";
+  const loc=bills.filter(b=>b.mail_type==="BTB PAYMENT-LOCAL").length;
+  $("stats").innerHTML=[["Bills found",bills.length],["Local",loc],["Foreign",bills.length-loc],["Emails ready",queue.length]]
+    .map(([t,n])=>`<div class="stat"><div class="t">${t}</div><div class="n">${n}</div></div>`).join("");
+  $("nfBox").innerHTML=nf.length?`<details open><summary style="color:var(--amber)">${nf.length} applicant(s) have no email address in the list</summary>${tbl(["Applicant","Mail type","Bills","Missing"],nf)}</details>`:"";
+  $("billsTbl").innerHTML=tbl(["Source","Type","LC Number","Applicant","Bill Ref","Ccy","Value","Maturity","Beneficiary","Nostro"],bills.map(b=>[b.source,b.mail_type.replace("BTB PAYMENT-",""),b.lc_number,b.applicant_name,b.bill_ref,b.bill_currency,b.bill_value,b.maturity,b.beneficiary,b.nostro_ac]));
+  $("logsTbl").innerHTML=tbl(["File","Detected as","Header row","In range","Skipped (code)","Skipped (date)"],logs);
+  $("items").innerHTML=queue.length?queue.map((q,i)=>`
+    <div class="item">
+      <input type="checkbox" class="sel" data-i="${i}" checked aria-label="Select ${esc(q.ap)}">
+      <div class="who"><b>${esc(q.ap)}</b><div>To: ${esc(q.to)}${q.cc?" · CC: "+esc(q.cc):""}</div><div class="err" id="er${i}"></div></div>
+      <div class="tags">${typeTag(q)}<span class="tag t-count">${q.n} bill${q.n>1?"s":""}</span></div>
+      <span class="tag stt s-pending" id="st${i}">Pending</span>
+      <div class="acts">
+        <button class="btn sm" data-prev data-i="${i}">Preview</button>
+        <button class="btn sm" data-open data-i="${i}" title="Open in Outlook to edit before sending">Open</button>
+        <button class="btn sm go" data-send data-i="${i}">Send</button>
+      </div>
+    </div>`).join(""):'<div class="empty">No emails to prepare for this date.</div>';
+  document.querySelectorAll("[data-prev]").forEach(b=>b.onclick=()=>openModal(+b.dataset.i));
+  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openOne(+b.dataset.i));
+  document.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendMany([+b.dataset.i]));
+  document.querySelectorAll(".sel").forEach(c=>c.onchange=updateSelCount);
+  queue.forEach((_,i)=>updateItem(i)); $("selAll").checked=true; updateSelCount();
+}
+function updateItem(i){
+  const it=STATE.queue[i], st=$("st"+i); if(!st) return;
+  st.className="tag stt s-"+(it.status==="Opening"?"sending":it.status.toLowerCase()); st.textContent=it.status==="Opening"?"Opening…":it.status==="Sending"?"Sending…":it.status;
+  $("er"+i).textContent=it.error;
+  const sb=document.querySelector(`[data-send][data-i="${i}"]`); if(sb){ sb.disabled=SENDING||it.status==="Sent"; sb.textContent=it.status==="Sent"?"Sent":it.status==="Failed"?"Retry":"Send"; }
+  const ob=document.querySelector(`[data-open][data-i="${i}"]`); if(ob) ob.disabled=SENDING||it.status==="Sent";
+  if(it.status==="Sent"){ const c=document.querySelector(`.sel[data-i="${i}"]`); if(c){ c.checked=false; c.disabled=true; } }
+  updateSelCount();
+}
+function selected(){ return [...document.querySelectorAll(".sel")].filter(c=>c.checked&&!c.disabled).map(c=>+c.dataset.i); }
+function updateSelCount(){ const n=selected().length; $("sendSel").textContent=n?`Send selected (${n})`:"Send selected"; }
+async function openOne(i){
+  if(!OUTLOOK_OK) return showMsg($("sendMsg"),"err","Outlook isn't connected.");
+  try{ await deliver(i,"display"); showMsg($("sendMsg"),"ok","Opened in Outlook. Review it there and press Send in Outlook."); }
+  catch(e){ showMsg($("sendMsg"),"err",esc(e.message)); }
+}
+
+/* Preview modal */
+function openModal(i){
+  const q=STATE.queue[i]; MODAL_I=i;
+  $("mMeta").innerHTML=`<div><b>To</b>${esc(q.to)}</div>${q.cc?`<div><b>CC</b>${esc(q.cc)}</div>`:""}<div><b>Subject</b>${esc(q.subject)}</div>`;
+  $("mFrame").srcdoc=q.html; $("mSend").disabled=SENDING||q.status==="Sent"; $("mOpen").disabled=SENDING||q.status==="Sent";
+  $("modal").classList.add("on");
+}
+function closeModal(){ $("modal").classList.remove("on"); MODAL_I=-1; }
+$("mClose").onclick=closeModal;
+$("modal").onclick=e=>{ if(e.target.id==="modal") closeModal(); };
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
+$("mSend").onclick=()=>{ const i=MODAL_I; closeModal(); sendMany([i]); };
+$("mOpen").onclick=()=>{ const i=MODAL_I; closeModal(); openOne(i); };
+
+/* ===================== EVENTS ===================== */
+$("dSingle").value=$("dFrom").value=$("dTo").value=todayKey();
+$("onBehalf").value=localStorage.getItem("btb_onbehalf")||"";
+$("onBehalf").onchange=()=>localStorage.setItem("btb_onbehalf",$("onBehalf").value.trim());
+$("account").onchange=()=>localStorage.setItem("btb_account",$("account").value);
+$("olPill").onclick=checkOutlook;
+
+function setMode(m){ MODE=m; $("segSingle").classList.toggle("on",m==="single"); $("segRange").classList.toggle("on",m==="range");
+  $("fSingle").style.display=m==="single"?"":"none"; $("fFrom").style.display=$("fTo").style.display=m==="range"?"":"none"; }
+$("segSingle").onclick=()=>setMode("single"); $("segRange").onclick=()=>setMode("range");
+
+$("regFiles").onchange=e=>{ const f=[...e.target.files]; $("regName").textContent=f.length?f.map(x=>x.name).join(", "):"Islamic, Dhaka and Chattogram — select all together"; $("pickReg").classList.toggle("done",!!f.length); };
+$("emailFile").onchange=e=>{ const f=e.target.files[0]; $("emailName").textContent=f?f.name:"Applicant, To (foreign), To (local), CC"; $("pickEmail").classList.toggle("done",!!f); };
+
+$("processBtn").onclick=async()=>{
+  const m=$("processMsg");
+  if(typeof XLSX==="undefined") return showMsg(m,"err","The Excel reader didn't load. Check the lib folder.");
+  const regs=[...$("regFiles").files], em=$("emailFile").files[0];
+  if(!regs.length) return showMsg(m,"err","Choose the LC register files.");
+  if(!em) return showMsg(m,"err","Choose the email list.");
+  const from=MODE==="single"?$("dSingle").value:$("dFrom").value, to=MODE==="single"?$("dSingle").value:$("dTo").value;
+  if(!from||!to) return showMsg(m,"err","Select the maturity date.");
+  if(from>to) return showMsg(m,"err","'From' must be on or before 'To'.");
+  showMsg(m,"ok","Reading files…"); $("processBtn").disabled=true;
+  try{
+    const bills=[], logs=[];
+    for(const f of regs){ try{ const r=await loadRegister(f,from,to); bills.push(...r.recs); logs.push(r.log); } catch(e){ logs.push([f.name,"Error: "+e.message,"","","",""]); } }
+    const dict=await loadEmailList(em), {q,nf}=buildQueue(bills,dict,$("makeNostro").checked);
+    STATE={bills,queue:q,nf,logs,from,to};
+    const dl=showDate(from)+(from!==to?" to "+showDate(to):"");
+    if(!bills.length) showMsg(m,"warn",`No bills mature on ${dl}.`);
+    else showMsg(m,"ok",`${bills.length} bill(s) maturing ${dl}. ${q.length} email(s) ready to send.`);
+    render();
+    if(bills.length) $("results").scrollIntoView({behavior:"smooth"});
+  }catch(e){ showMsg(m,"err","Couldn't read the files: "+esc(e.message)); }
+  finally{ $("processBtn").disabled=false; }
+};
+$("selAll").onchange=e=>{ document.querySelectorAll(".sel").forEach(c=>{ if(!c.disabled) c.checked=e.target.checked; }); updateSelCount(); };
+$("sendSel").onclick=()=>{ const ix=selected(); if(!ix.length) return showMsg($("sendMsg"),"err","Select at least one email."); sendMany(ix); };
+$("exportBtn").onclick=()=>{
+  if(!STATE.bills.length) return;
+  const ws=XLSX.utils.json_to_sheet(STATE.bills.map(b=>({"Source":b.source,"Mail Type":b.mail_type,"LC Number":b.lc_number,"Applicant Name":b.applicant_name,"Bill Ref":b.bill_ref,"Bill Currency":b.bill_currency,"Bill Value":b.bill_value,"Maturity Date":b.maturity,"Beneficiary Name":b.beneficiary,"Nostro A/C":b.nostro_ac})));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Bills");
+  XLSX.writeFile(wb,`BTB_bills_${STATE.from}${STATE.from!==STATE.to?"_to_"+STATE.to:""}.xlsx`);
+};
+window.addEventListener("beforeunload",e=>{ if(SENDING){ e.preventDefault(); e.returnValue=""; } });
+checkOutlook();
+</script>
+</body>
+</html>
