@@ -10,7 +10,7 @@ export const metadata = {
 const autoMailerTools = [
   {
     name: 'Accepted Bill Payment Reminder',
-    description: 'Read LC registers, prepare payment reminders by maturity date, and review them before opening or sending through desktop Outlook.',
+    description: 'Read LC Acceptance registers, prepare payment reminders by maturity date, and review them before opening or sending through desktop Outlook.',
     href: '/tools/automailer/accepted-bill-payment-reminder',
   },
 ];

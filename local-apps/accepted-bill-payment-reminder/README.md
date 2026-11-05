@@ -1,12 +1,12 @@
 # Accepted Bill Payment Reminder
 
-A local Windows/Outlook companion app listed on the website under **AutoMailer**. It reads LC register spreadsheets and an applicant email list, prepares accepted-bill payment reminders, and opens or sends them through desktop Outlook after explicit user confirmation.
+A local Windows/Outlook companion app listed on the website under **AutoMailer**. It reads LC Acceptance register spreadsheets and an applicant email list, prepares accepted-bill payment reminders, and opens or sends them through desktop Outlook after explicit user confirmation.
 
 ## Requirements
 
 - Windows with desktop Outlook installed and signed in
 - Permission to run the supplied PowerShell script in the user's Windows session
-- LC register files (`.xls` or `.xlsx`) and an applicant email list (`.xls`, `.xlsx`, or `.csv`)
+- LC Acceptance register files (`.xls` or `.xlsx`) and an applicant email list (`.xls`, `.xlsx`, or `.csv`)
 
 The public website cannot send through desktop Outlook by itself. The local companion server must be running on the same PC as Outlook.
 
@@ -23,7 +23,7 @@ The offline SheetJS and JSZip libraries are already included. `Get_Offline_Libra
 
 1. Open desktop Outlook.
 2. Double-click `Start_BTB_Emailer.bat` on the PC. Visiting the public website is not required for daily use.
-3. Select all applicable LC registers and the applicant email list.
+3. Select all applicable LC Acceptance registers and the applicant email list.
 4. Choose a maturity date or inclusive date range and, if required, enable Nostro emails.
 5. Select **Find bills and prepare emails**.
 6. Review statistics, matched bills, missing addresses, and email previews.

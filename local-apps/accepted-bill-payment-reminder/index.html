@@ -114,7 +114,7 @@
       <label class="pick" id="pickReg">
         <input type="file" id="regFiles" accept=".xls,.xlsx" multiple>
         <div class="ic">XLS</div>
-        <div><b>LC registers</b><span id="regName">Islamic, Dhaka and Chattogram — select all together</span></div>
+        <div><b>LC Acceptance registers</b><span id="regName">Islamic, Dhaka and Chattogram — select all together</span></div>
       </label>
       <label class="pick" id="pickEmail">
         <input type="file" id="emailFile" accept=".xls,.xlsx,.csv">
@@ -435,7 +435,7 @@ $("processBtn").onclick=async()=>{
   const m=$("processMsg");
   if(typeof XLSX==="undefined") return showMsg(m,"err","The Excel reader didn't load. Check the lib folder.");
   const regs=[...$("regFiles").files], em=$("emailFile").files[0];
-  if(!regs.length) return showMsg(m,"err","Choose the LC register files.");
+  if(!regs.length) return showMsg(m,"err","Choose the LC Acceptance register files.");
   if(!em) return showMsg(m,"err","Choose the email list.");
   const from=MODE==="single"?$("dSingle").value:$("dFrom").value, to=MODE==="single"?$("dSingle").value:$("dTo").value;
   if(!from||!to) return showMsg(m,"err","Select the maturity date.");

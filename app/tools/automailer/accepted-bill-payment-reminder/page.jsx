@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Accepted Bill Payment Reminder',
-  description: 'Download and launch the local Windows app that prepares accepted bill payment reminders from LC registers and sends reviewed emails through desktop Outlook.',
+  description: 'Download and launch the local Windows app that prepares accepted bill payment reminders from LC Acceptance registers and sends reviewed emails through desktop Outlook.',
   alternates: { canonical: '/tools/automailer/accepted-bill-payment-reminder' },
 };
 
@@ -10,7 +10,7 @@ const features = ['Local Excel processing', 'Preview before sending', 'Optional 
 const requirements = [
   'A Windows PC with desktop Outlook installed and signed in',
   'The local companion app running in the same Windows session',
-  'Your LC register spreadsheets and applicant email-list spreadsheet',
+  'Your LC Acceptance register spreadsheets and applicant email-list spreadsheet',
 ];
 const setupSteps = [
   {
@@ -55,7 +55,7 @@ export default function AcceptedBillPaymentReminderPage() {
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-bottle">AutoMailer · Local Windows app</p>
             <h1 className="display text-5xl text-ink sm:text-6xl">Accepted Bill Payment Reminder</h1>
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-mute">
-              Turn LC registers into reviewed payment reminders grouped by applicant, then open or send them through your own desktop Outlook.
+              Turn LC Acceptance registers into reviewed payment reminders grouped by applicant, then open or send them through your own desktop Outlook.
             </p>
             <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-ink">
               {features.map((feature) => (
