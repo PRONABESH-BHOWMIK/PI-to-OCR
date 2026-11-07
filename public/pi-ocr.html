@@ -150,6 +150,15 @@
     .hs-check-code { font: 600 14px/1.5 'Courier New', monospace; }
     .hs-check-category { text-align: right; }
     .hs-check-note { margin: 10px 0 0; color: var(--mute); font-size: 12px; }
+    .tariff-check-status { padding: 14px 16px; border-left: 4px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--mute); }
+    .tariff-check-status[data-state="success"] { border-color: #21875D; background: #EDF8F1; color: #176B45; }
+    .tariff-check-status[data-state="warning"] { border-color: #B7791F; background: #FDF6E3; color: #8A5A00; }
+    .tariff-check-message { margin: 0; font-weight: 600; line-height: 1.5; }
+    .tariff-check-matches { margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid currentColor; list-style: none; }
+    .tariff-check-matches li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 4px 0; font-size: 14px; }
+    .tariff-check-code { font: 600 14px/1.5 'Courier New', monospace; }
+    .tariff-check-description { text-align: right; }
+    .tariff-check-note { margin: 10px 0 0; color: var(--mute); font-size: 12px; }
     @media (max-width: 900px) {
       .output-grid { grid-template-columns: 1fr; }
     }
@@ -271,6 +280,17 @@
               <ul id="hsCheckMatches" class="hs-check-matches" hidden></ul>
             </div>
             <p class="hs-check-note">Exact first-four-digit match against the supplied import-control list.</p>
+          </div>
+        </article>
+
+        <article class="card output-card" aria-labelledby="tariffCheckTitle">
+          <div class="output-header"><h3 id="tariffCheckTitle">HS Tariff Description</h3><span class="card-label">Exact 8-digit lookup</span></div>
+          <div class="output-body">
+            <div id="tariffCheckStatus" class="tariff-check-status" data-state="idle" role="status" aria-live="polite" aria-atomic="true">
+              <p id="tariffCheckMessage" class="tariff-check-message">Tariff descriptions will appear with the formatted results.</p>
+              <ul id="tariffCheckMatches" class="tariff-check-matches" hidden></ul>
+            </div>
+            <p class="tariff-check-note">Exact 8-digit match against the built-in tariff table. No fallback to shorter HS headings.</p>
           </div>
         </article>
 
@@ -695,5 +715,7 @@
     });
   </script>
   <script src="hs-code-check.js"></script>
+  <script src="data/hs-tariff-descriptions.js"></script>
+  <script src="tariff-description-check.js"></script>
 </body>
 </html>
