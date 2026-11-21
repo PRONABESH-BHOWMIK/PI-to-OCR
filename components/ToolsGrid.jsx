@@ -15,7 +15,6 @@ const tools = [
   { name: 'Bank SWIFT/BIC Code Finder', description: "Look up a bank's SWIFT/BIC code by name, city or country.", category: 'Lookup', status: 'coming' },
   { name: 'INCOTERMS Calculator', description: 'Work out costs and responsibilities under INCOTERMS 2020.', category: 'Calculators', status: 'coming' },
   { name: 'Cost Calculator', description: 'Calculate bank charges and trade finance costs from one place.', category: 'Calculators', status: 'live', href: '/tools/cost-calculator', subtools: ['LC Issue Cost Calculator'] },
-  { name: 'CDCS Mock Test', description: 'Practice CDCS exam-style questions with scoring and explanations.', category: 'Learning', status: 'coming' },
 ];
 
 export default function ToolsGrid({ filterable = false }) {
