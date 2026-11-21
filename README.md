@@ -28,24 +28,32 @@ app/                         Next.js App Router pages, global CSS, metadata
   api/exchange-rate/route.js Bangladesh Bank exchange-rate endpoint (usage-logged)
   api/admin/                 Admin login, logout, session and stats endpoints
   admin/                     Admin login page and usage dashboard
+  tools/hs-code-finder/     HS Code Finder lookup tool (2026-27 tariff details)
 components/                  Shared React components
 lib/
   db.js                      Neon / Vercel Postgres connection (graceful without POSTGRES_URL)
   usage.js                   Usage logging and per-IP daily rate limit
   admin-auth.js              Admin scrypt password check and signed session cookies
+  hs-code-parse.js           HS Code Finder input parsing (dots, comma-separated codes)
 public/
   pi-ocr.html                Standalone browser OCR tool, shown in an iframe
   enhance.js                 Image scaling, grayscale and contrast
   tablelines.js              Removes long ruled table lines from the OCR copy
   format.js                  Fixed formatting for items and beneficiary
   verify.js                  Arithmetic checks against numbers in the OCR text
+  tariff-description-check.js  PI OCR exact 8-digit tariff description lookup
+  data/
+    hs-tariff-descriptions.js   HS code → tariff description table (PI OCR)
+    hs-code-tax-2026-27.js      HS code → 2026-27 unit/tax details (HS Code Finder)
 scripts/
-  sql/schema.sql             usage_logs table and indexes
-  hash-password.js           Generates the ADMIN_PASSWORD_HASH scrypt value
-*.test.js                    Standalone legacy checks (see "Tests" below)
+  build-hs-tariff-data.py      Rebuilds hs-tariff-descriptions.js from the markdown source
+  build-hs-code-tax-data.py    Rebuilds hs-code-tax-2026-27.js from the markdown source
+  sql/schema.sql               usage_logs table and indexes
+  hash-password.js             Generates the ADMIN_PASSWORD_HASH scrypt value
+*.test.js                     Standalone legacy checks (see "Tests" below)
 ```
 
-The PI OCR page embeds `public/pi-ocr.html` using `components/ToolFrame.jsx`, so the original browser tool can remain a static asset.
+The PI OCR page embeds `public/pi-ocr.html` using `components/ToolFrame.jsx`, so the original browser tool can remain a static asset. The HS Code Finder loads its data from `public/data/hs-code-tax-2026-27.js` in the browser — no server or API call needed.
 
 ## Requirements
 

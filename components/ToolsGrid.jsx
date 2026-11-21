@@ -11,7 +11,7 @@ const tools = [
   { name: 'LC Draft Generator', description: 'Draft Letter of Credit text with proper SWIFT formatting.', category: 'Generators', status: 'coming' },
   { name: 'AutoMailer', description: 'Send routine trade finance emails from saved templates.', category: 'Automation', status: 'coming' },
   { name: 'PII entry helper', description: 'Speed up entering customer identity details from source documents.', category: 'Automation', status: 'coming' },
-  { name: 'HS Code Finder', description: 'Find the right HS code for a product.', category: 'Lookup', status: 'coming' },
+  { name: 'HS Code Finder', description: 'Look up any HS code and see its 2026-27 tariff details.', category: 'Lookup', status: 'live', href: '/tools/hs-code-finder' },
   { name: 'Bank SWIFT/BIC Code Finder', description: "Look up a bank's SWIFT/BIC code by name, city or country.", category: 'Lookup', status: 'coming' },
   { name: 'INCOTERMS Calculator', description: 'Work out costs and responsibilities under INCOTERMS 2020.', category: 'Calculators', status: 'coming' },
   { name: 'Cost Calculator', description: 'Calculate bank charges and trade finance costs from one place.', category: 'Calculators', status: 'live', href: '/tools/cost-calculator', subtools: ['LC Issue Cost Calculator'] },
