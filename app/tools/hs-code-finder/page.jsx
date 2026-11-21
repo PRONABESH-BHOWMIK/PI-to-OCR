@@ -6,6 +6,7 @@ import { parseHsCodes } from '@/lib/hs-code-parse';
 
 const DATA_FILE = '/data/hs-code-tax-2026-27.js';
 
+// One continuous strip on the second line: label above, value below.
 const DETAIL_COLUMNS = [
   { key: 'unit', label: 'Statistical Unit' },
   { key: 'cd', label: 'CD' },
@@ -14,7 +15,7 @@ const DETAIL_COLUMNS = [
   { key: 'ait', label: 'AIT' },
   { key: 'rd', label: 'RD' },
   { key: 'at', label: 'AT' },
-  { key: 'total', label: 'TOTAL TAX (%)' },
+  { key: 'total', label: 'Total Tax Incidence (%)' },
 ];
 
 const show = (value) => (value === '' || value == null ? '—' : value);
@@ -103,31 +104,44 @@ export default function HsCodeFinderPage() {
               {found.length > 0 && (
                 <ul className="space-y-5">
                   {found.map(({ code, row }) => (
-                    <li
-                      key={code}
-                      className="rounded-xl border border-line bg-white p-6"
-                    >
-                      <div className="flex items-baseline gap-3">
+                    <li key={code} className="rounded-xl border border-line bg-white p-6">
+                      {/* Line 1: HS code, chapter and description on one continuous line */}
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span className="display rounded-md bg-bottle px-3 py-1.5 font-bold text-white">
                           {code}
                         </span>
                         <span className="text-xs font-semibold uppercase tracking-wider text-mute">
                           Chapter {code.slice(0, 2)}
                         </span>
+                        <span className="font-semibold text-ink">{row.description}</span>
                       </div>
-                      <p className="mt-4 text-lg font-semibold text-ink">{row.description}</p>
-                      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-                        {DETAIL_COLUMNS.map((column) => (
-                          <div key={column.key}>
-                            <dt className="text-xs font-bold uppercase tracking-wider text-mute">
+
+                      {/* Line 2: one continuous strip of all tax components */}
+                      <div className="mt-4 flex flex-wrap border-y border-line">
+                        {DETAIL_COLUMNS.map((column, index) => (
+                          <div
+                            key={column.key}
+                            className={`flex-1 min-w-[72px] border-r border-line px-3 py-2.5 text-center last:border-r-0 ${
+                              column.key === 'total' ? 'bg-marigold' : ''
+                            }`}
+                          >
+                            <span
+                              className={`block text-[10px] font-bold uppercase tracking-wider ${
+                                column.key === 'total' ? 'text-bottle-dark' : 'text-mute'
+                              }`}
+                            >
                               {column.label}
-                            </dt>
-                            <dd className="mt-1 font-semibold text-ink tabular-nums">
+                            </span>
+                            <span
+                              className={`mt-1 block text-base font-bold tabular-nums ${
+                                column.key === 'total' ? 'text-bottle-dark' : 'text-ink'
+                              }`}
+                            >
                               {show(row[column.key])}
-                            </dd>
+                            </span>
                           </div>
                         ))}
-                      </dl>
+                      </div>
                     </li>
                   ))}
                 </ul>
