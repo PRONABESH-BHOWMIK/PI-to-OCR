@@ -64,7 +64,7 @@ export async function GET(request) {
       [startIso, endIso],
     ),
     query(
-      `SELECT date_trunc('day', created_at)::date AS day, COUNT(*)::int AS requests
+      `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS requests
          FROM usage_logs
         WHERE created_at >= $1 AND created_at <= $2
         GROUP BY day
