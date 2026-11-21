@@ -24,15 +24,24 @@ The application has no database or file-storage code. For item extraction, OCR t
 
 ```text
 app/                         Next.js App Router pages, global CSS, metadata
-  api/describe/route.js      Groq-backed structured extraction endpoint
-  tools/                     Tool listing and PI OCR page
+  api/describe/route.js      Groq-backed structured extraction endpoint (rate-limited, usage-logged)
+  api/exchange-rate/route.js Bangladesh Bank exchange-rate endpoint (usage-logged)
+  api/admin/                 Admin login, logout, session and stats endpoints
+  admin/                     Admin login page and usage dashboard
 components/                  Shared React components
+lib/
+  db.js                      Neon / Vercel Postgres connection (graceful without POSTGRES_URL)
+  usage.js                   Usage logging and per-IP daily rate limit
+  admin-auth.js              Admin scrypt password check and signed session cookies
 public/
   pi-ocr.html                Standalone browser OCR tool, shown in an iframe
   enhance.js                 Image scaling, grayscale and contrast
   tablelines.js              Removes long ruled table lines from the OCR copy
   format.js                  Fixed formatting for items and beneficiary
   verify.js                  Arithmetic checks against numbers in the OCR text
+scripts/
+  sql/schema.sql             usage_logs table and indexes
+  hash-password.js           Generates the ADMIN_PASSWORD_HASH scrypt value
 *.test.js                    Standalone legacy checks (see "Tests" below)
 ```
 
@@ -43,6 +52,7 @@ The PI OCR page embeds `public/pi-ocr.html` using `components/ToolFrame.jsx`, so
 - A Node.js version supported by Next.js 15 (18.18 or newer).
 - npm.
 - A Groq API key for AI-assisted item extraction.
+- A Postgres database (Neon / Vercel Postgres) for usage tracking, the admin panel and the AI rate limit. The site runs without one, but usage rows are skipped and the rate limit falls back to an in-memory counter.
 - Browser access to jsDelivr and Tesseract's language-data CDN. Tesseract, PDF.js, and pdf-lib are loaded from jsDelivr rather than installed locally. Google Fonts is also loaded externally.
 
 The searchable PDF and raw extracted text still work when the AI endpoint is unavailable; only the structured item lines, beneficiary information, and checks are missing.
@@ -86,19 +96,55 @@ Never commit a real API key. This repository does not currently include a `.giti
 | `GROQ_MODEL` | No | Text model; currently defaults to `openai/gpt-oss-120b`. |
 | `GROQ_VISION_MODEL` | No | Vision model; currently defaults to `qwen/qwen3.8-27b`. |
 | `AI_TIMEOUT_MS` | No | Abort a Groq request after this many milliseconds; defaults to `8000`. |
+| `POSTGRES_URL` | Yes for usage tracking | Vercel sets this automatically once the project is linked to a Postgres database (Neon). `DATABASE_URL` is also accepted. |
+| `ADMIN_USERNAME` | Yes for the admin panel | Admin login name. |
+| `ADMIN_PASSWORD_HASH` | Yes for the admin panel | scrypt password hash, generated with `node scripts/hash-password.js "your password"`. |
+| `ADMIN_SESSION_SECRET` | Yes for the admin panel | HMAC key for the admin session cookie (`openssl rand -hex 32`). |
+| `RATE_LIMIT_PER_DAY` | No | Per-IP daily limit on `/api/describe`; defaults to `50`. |
 
 Model availability and names can change. Use the model environment variables to override the defaults instead of hard-coding a replacement. `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL` from older documentation are no longer used.
+
+## Admin panel, usage tracking and rate limiting
+
+The site logs every tool request to a Postgres `usage_logs` table and protects the AI endpoint with a per-IP daily limit. An admin dashboard at `/admin` shows usage across **all tools** (PI OCR, exchange rate, and any future tool that logs requests).
+
+**Setup:**
+
+1. Link a Postgres database to the Vercel project (Neon or Vercel Postgres). Vercel sets `POSTGRES_URL` automatically.
+2. Create the table once in the database:
+
+   ```bash
+   psql "$POSTGRES_URL" -f scripts/sql/schema.sql
+   ```
+
+3. Create an admin password hash and copy it to the project environment:
+
+   ```bash
+   node scripts/hash-password.js "your password"
+   ```
+
+   Set `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` and `ADMIN_SESSION_SECRET` in the project environment (Vercel → Project → Settings → Environment Variables). See `.env.example`.
+4. Sign in at `/admin/login` with the admin account.
+
+**Behavior:**
+
+- `POST /api/describe` is rate-limited to `RATE_LIMIT_PER_DAY` (default **50**) requests per IP address per UTC day. Requests beyond the limit get a `429`.
+- Every request to `/api/describe` and `/api/exchange-rate` writes one row to `usage_logs` with `tool`, `status` (`success` / `error` / `rate_limited`), `pages`, `model`, `ip` and `created_at`.
+- The dashboard (`/admin`) aggregates totals, per-tool and per-status breakdowns, a daily series and recent activity over a date range.
+- The client IP is taken from the last entry of `X-Forwarded-For`, which the platform's edge appends and a client cannot forge by prepending fake addresses.
+- If Postgres is not configured, the site keeps working: usage rows are skipped, rate limiting falls back to an in-memory counter, and the dashboard reports that Postgres is not configured.
 
 ## Deploying to Vercel
 
 1. Import the GitHub repository into Vercel.
 2. Keep the automatically detected Next.js framework and build settings.
 3. Add `GROQ_API_KEY` in the project's environment variables. Add the optional model and timeout variables if needed.
-4. Deploy and open `/tools/proforma-invoice-ocr`.
+4. Link a Postgres database (Neon / Vercel Postgres), run `scripts/sql/schema.sql` against it, and add the admin environment variables (see above).
+5. Deploy and open `/tools/proforma-invoice-ocr`.
 
 The Groq key remains server-side. Do not prefix it with `NEXT_PUBLIC_`.
 
-The AI endpoint currently has no application-level authentication, spending cap, or rate limit. A public deployment can be abused and consume Groq quota. Use Vercel Firewall or an equivalent rate limit before exposing it widely, and check your Vercel plan's terms if the site is used commercially.
+The AI endpoint is rate-limited to 50 requests per day per IP address. The admin panel is protected by the configured credentials; keep `ADMIN_SESSION_SECRET` secret and set a strong password hash.
 
 ## Limits and browser behavior
 
@@ -112,4 +158,10 @@ The AI endpoint currently has no application-level authentication, spending cap,
 
 ## Tests
 
-`enhance.test.js`, `format.test.js`, and `tablelines.test.js` are standalone Node checks. They currently target an older flat file layout and are not wired into `package.json`, so they need their import paths and exports repaired before they can serve as regression tests. There is no working `npm test` command yet.
+`admin-auth.test.js` and `usage.test.js` cover the admin password check, session cookies, the per-IP rate limit and the no-database fallback:
+
+```bash
+node --test admin-auth.test.js usage.test.js
+```
+
+`enhance.test.js`, `format.test.js`, and `tablelines.test.js` are standalone Node checks. They currently target an older flat file layout and are not wired into `package.json`, so they need their import paths and exports repaired before they can serve as regression tests. The tool logic tests in `lib/` run with `npm run test:tools`.
