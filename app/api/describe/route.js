@@ -2,6 +2,13 @@
 // Vercel web handler: export a function named after the HTTP method.
 // (A plain `export default function handler(req)` that returns a Response is treated as a
 // Node (req, res) handler, so the response is never sent and the request ends in a 504 timeout.)
+//
+// Usage logging: every request writes one row to the usage_logs table
+// (tool 'pi-ocr'). The endpoint is rate-limited to RATE_LIMIT_PER_DAY requests
+// per IP address per UTC day (default 50). See lib/usage.js and
+// scripts/sql/schema.sql.
+import { checkRateLimit, getClientIp, logUsage } from '@/lib/usage';
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -9,21 +16,47 @@ const json = (body, status = 200) =>
 // examples (OCR text -> the correct JSON). Every request pays for this text, so keep it short.
 const EXTRA_RULES = '';
 
+// Write a usage row, but never let a logging failure break the response.
+async function recordUsage(entry) {
+  try {
+    await logUsage(entry);
+  } catch (error) {
+    console.error('[describe] usage log failed:', error.message);
+  }
+}
+
 export async function POST(request) {
+  const ip = getClientIp(request);
   try {
     const { ocrText, retry, images } = await request.json();
     if (!ocrText || typeof ocrText !== 'string') {
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: 0, model: null, ip });
       return json({ error: 'Missing or invalid ocrText' }, 400);
     }
     // Page pictures (JPEG data URLs). Groq's vision models take at most 3 images per request.
     const pictures = Array.isArray(images) ? images : [];
     if (pictures.length > 3 || pictures.some((u) => typeof u !== 'string' || !u.startsWith('data:image/jpeg;base64,')) || pictures.join('').length > 4000000) {
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: pictures.length, model: null, ip });
       return json({ error: 'Invalid images: send at most 3 JPEG data URLs, 4 MB in total' }, 400);
     }
     const vision = pictures.length > 0;
 
+    // Per-IP daily rate limit, checked before spending any AI tokens.
+    const rateLimit = await checkRateLimit('pi-ocr', ip);
+    if (!rateLimit.allowed) {
+      await recordUsage({ tool: 'pi-ocr', status: 'rate_limited', pages: 0, model: null, ip });
+      return json(
+        {
+          error: `Rate limit reached: ${rateLimit.limit} requests per day from one IP address. Try again tomorrow or from another connection.`,
+          limit: rateLimit.limit,
+        },
+        429,
+      );
+    }
+
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: pictures.length, model: null, ip });
       return json({ error: 'GROQ_API_KEY is not configured in Vercel' }, 500);
     }
 
@@ -36,25 +69,7 @@ export async function POST(request) {
       ? "You read a Proforma Invoice (PI) from its page pictures, the way a person would: the pictures show which name, quantity, price and amount sit in the same row, so use the layout. The OCR text after the rules is a machine reading of the same pages and may be wrong, garbled or out of order: trust the pictures and use the OCR text only to double-check digits. The PI may mix Bangla and English."
       : 'You read the OCR text of a Proforma Invoice (PI). The text may contain recognition errors and mixed Bangla/English.';
 
-    const prompt = `${intro} Return ONLY a JSON object, no markdown fences and no commentary, in exactly this shape:
-
-{"beneficiary":{"name":"...","address":"..."},"items":[{"item_name":"...","quantity":"...","uom":"...","currency":"...","unit_price":"...","line_total":"...","hs_code":"..."}],"notes":""}
-
-Rules:
-- beneficiary is the seller / exporter / shipper who issued the PI. name = the company name only. address = the full postal address (street, city, postal code, country) as one string. Leave out phone, fax, email and website.
-- items has one entry per product line, in the PI's order. item_name = the item name only, as written in the PI (no quantity, price or H.S. code).
-- quantity = the number only. uom = the unit of measure as written in the PI (YDS, PCS, KG, MTR, SET...). currency = the currency code (USD, EUR...). unit_price = the number only, the price for one unit.
-- The text may be a table with one row per item, columns separated by spaces. Do not mistake the pack size (for example 120 Kg drum) for the ordered quantity (the Qty column), or the line total for the unit price (the Unit Price column).
-- line_total = the amount printed for that item's row (number only).
-- hs_code = the H.S. code printed in the PI for that item.
-- In a table, an item's name can wrap over two lines, so the name may sit on the line above or below the line that carries the serial number, quantity and amounts. Pair them in order. Return one entry for every numbered row or row with an amount, even when some fields are unreadable (use null for those). Return an empty items list only when the text has no item rows at all, and then say why in notes.
-- Never calculate, estimate or correct numbers yourself. Copy each number exactly as it appears in the text (the OCR may have dropped a decimal point; copy it as it appears). A program checks quantity x unit price = line total afterwards and only uses numbers that are written in the text.
-- Use null for anything that is not in the text. Do not guess. notes = one short sentence only if something stopped you reading the items, otherwise an empty string.
-${EXTRA_RULES}
-${retry ? 'Your previous answer was rejected by the user. Re-read the text carefully and correct any mistakes.' : ''}
-
-${vision ? 'OCR text (may be wrong or out of order):' : 'Raw OCR:'}
-${ocrText}`;
+    const prompt = `${intro} Return ONLY a JSON object, no markdown fences and no commentary, in exactly this shape:\n\n{"beneficiary":{"name":"...","address":"..."},"items":[{"item_name":"...","quantity":"...","uom":"...","currency":"...","unit_price":"...","line_total":"...","hs_code":"..."}],"notes":""}\n\nRules:\n- beneficiary is the seller / exporter / shipper who issued the PI. name = the company name only. address = the full postal address (street, city, postal code, country) as one string. Leave out phone, fax, email and website.\n- items has one entry per product line, in the PI's order. item_name = the item name only, as written in the PI (no quantity, price or H.S. code).\n- quantity = the number only. uom = the unit of measure as written in the PI (YDS, PCS, KG, MTR, SET...). currency = the currency code (USD, EUR...). unit_price = the number only, the price for one unit.\n- The text may be a table with one row per item, columns separated by spaces. Do not mistake the pack size (for example 120 Kg drum) for the ordered quantity (the Qty column), or the line total for the unit price (the Unit Price column).\n- line_total = the amount printed for that item's row (number only).\n- hs_code = the H.S. code printed in the PI for that item.\n- In a table, an item's name can wrap over two lines, so the name may sit on the line above or below the line that carries the serial number, quantity and amounts. Pair them in order. Return one entry for every numbered row or row with an amount, even when some fields are unreadable (use null for those). Return an empty items list only when the text has no item rows at all, and then say why in notes.\n- Never calculate, estimate or correct numbers yourself. Copy each number exactly as it appears in the text (the OCR may have dropped a decimal point; copy it as it appears). A program checks quantity x unit price = line total afterwards and only uses numbers that are written in the text.\n- Use null for anything that is not in the text. Do not guess. notes = one short sentence only if something stopped you reading the items, otherwise an empty string.\n${EXTRA_RULES}\n${retry ? 'Your previous answer was rejected by the user. Re-read the text carefully and correct any mistakes.' : ''}\n\n${vision ? 'OCR text (may be wrong or out of order):' : 'Raw OCR:'}\n${ocrText}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -83,6 +98,7 @@ ${ocrText}`;
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: pictures.length, model, ip });
       return json({
         error: `Groq API failed: ${response.status}`,
         details: errorData.error?.message || 'Unknown error'
@@ -95,9 +111,11 @@ ${ocrText}`;
     try {
       parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)); // tolerates stray text or fences
     } catch {
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: pictures.length, model, ip });
       return json({ error: 'Could not read the reply as data', details: raw.slice(0, 200) }, 502);
     }
     const items = Array.isArray(parsed.items) ? parsed.items : [];
+    await recordUsage({ tool: 'pi-ocr', status: 'success', pages: pictures.length, model, ip });
     return json({
       beneficiary: parsed.beneficiary || null,
       items,
@@ -108,8 +126,10 @@ ${ocrText}`;
     });
   } catch (error) {
     if (error.name === 'TimeoutError') {
+      await recordUsage({ tool: 'pi-ocr', status: 'error', pages: 0, model: null, ip });
       return json({ error: 'Groq did not answer in time' }, 504);
     }
+    await recordUsage({ tool: 'pi-ocr', status: 'error', pages: 0, model: null, ip });
     return json({ error: 'Internal Server Error', details: error.message }, 500);
   }
 }
