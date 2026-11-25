@@ -15,6 +15,12 @@ export default function HeroSection() {
             <Link href="/tools/proforma-invoice-ocr" className="rounded-md bg-bottle px-6 py-3 text-center font-semibold text-white hover:bg-bottle-dark">
               Open the PI OCR tool
             </Link>
+            <Link href="/tools/hs-code-finder" className="rounded-md border-2 border-ink px-6 py-3 text-center font-semibold text-ink hover:bg-ink hover:text-marigold">
+              HS Code Finder
+            </Link>
+            <Link href="/tools/cost-calculator" className="rounded-md border-2 border-ink px-6 py-3 text-center font-semibold text-ink hover:bg-ink hover:text-marigold">
+              Cost Calculator
+            </Link>
             <Link href="/tools" className="rounded-md border-2 border-ink px-6 py-3 text-center font-semibold text-ink hover:bg-ink hover:text-marigold">
               Browse all tools
             </Link>

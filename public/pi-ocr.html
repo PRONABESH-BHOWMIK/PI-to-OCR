@@ -101,8 +101,6 @@
     .btn.green:hover { background: var(--white); }
     .btn.outline { border: 1px solid var(--line); background: var(--white); color: var(--bottle); }
     .btn.outline:hover { border-color: var(--bottle); }
-    .disclaimer { display: flex; align-items: center; gap: 7px; max-width: 430px; color: var(--mute); font-size: 12px; line-height: 1.45; }
-    .disclaimer svg { flex: 0 0 auto; color: var(--bottle); }
     .status { min-height: 24px; margin: 14px 4px; color: var(--bottle); font-size: 14px; font-weight: 500; text-align: center; }
     .result-section { display: none; margin-top: 26px; }
     .result-section.active { display: block; }
@@ -230,10 +228,6 @@
 
       <div class="upload-actions">
         <button id="processBtn" class="btn">Process PI <span aria-hidden="true">→</span></button>
-        <div class="disclaimer">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 7.8 7.5 9.5 4.3-1.7 7.5-4.9 7.5-9.5V6L12 3Z" /><path d="m9 12 2 2 4-4" /></svg>
-          No data is stored in the server.
-        </div>
       </div>
     </section>
 
@@ -542,6 +536,14 @@
           ? formatItems(checked.items)
           : 'No item lines found.' + (data.notes ? '\n' + data.notes : '') + (data.debug ? '\nReply received: ' + data.debug : '');
         beneficiaryTextEl.textContent = formatBeneficiary(data.beneficiary);
+        // PI number and date come from the AI; when the AI misses a field, keep the regex extraction for it
+        const aiNo = data.piNumber ? String(data.piNumber).trim() : '';
+        const aiDate = data.piDate ? String(data.piDate).trim() : '';
+        if (aiNo || aiDate) {
+          const fallback = extractPiRef(ocrText);
+          const fallbackParts = fallback.split(' DATED ');
+          piRefTextEl.textContent = `${aiNo || fallbackParts[0] || 'N/A'} DATED ${aiDate || fallbackParts[1] || 'N/A'}`.toUpperCase();
+        }
         const lines = [...info, ...checked.notes];
         checksTextEl.textContent = lines.join('\n');
         checksSection.style.display = lines.length ? 'block' : 'none';
