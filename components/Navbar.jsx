@@ -37,9 +37,6 @@ export default function Navbar() {
               {l.label}
             </Link>
           ))}
-          <Link href="/tools/proforma-invoice-ocr" className="ml-4 rounded-md bg-bottle px-4 py-2 text-sm font-semibold text-white hover:bg-bottle-dark">
-            Open PI OCR
-          </Link>
         </nav>
 
         <button
