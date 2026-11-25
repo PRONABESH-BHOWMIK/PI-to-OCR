@@ -542,6 +542,14 @@
           ? formatItems(checked.items)
           : 'No item lines found.' + (data.notes ? '\n' + data.notes : '') + (data.debug ? '\nReply received: ' + data.debug : '');
         beneficiaryTextEl.textContent = formatBeneficiary(data.beneficiary);
+        // PI number and date come from the AI; when the AI misses a field, keep the regex extraction for it
+        const aiNo = data.piNumber ? String(data.piNumber).trim() : '';
+        const aiDate = data.piDate ? String(data.piDate).trim() : '';
+        if (aiNo || aiDate) {
+          const fallback = extractPiRef(ocrText);
+          const fallbackParts = fallback.split(' DATED ');
+          piRefTextEl.textContent = `${aiNo || fallbackParts[0] || 'N/A'} DATED ${aiDate || fallbackParts[1] || 'N/A'}`.toUpperCase();
+        }
         const lines = [...info, ...checked.notes];
         checksTextEl.textContent = lines.join('\n');
         checksSection.style.display = lines.length ? 'block' : 'none';
