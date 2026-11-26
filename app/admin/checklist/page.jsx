@@ -147,7 +147,7 @@ export default function AdminChecklistPage() {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Admin</p>
-          <h1 className="display text-5xl text-ink">Checklist tool management</h1>
+          <h1 className="display text-5xl text-ink">Client data check management</h1>
           <p className="mt-3 max-w-2xl text-mute">
             Manage tool user IDs and document types, and view daily checklist activity. Admins cannot see client data.
           </p>

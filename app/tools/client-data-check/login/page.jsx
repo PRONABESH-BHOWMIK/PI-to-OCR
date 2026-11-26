@@ -25,7 +25,7 @@ export default function ChecklistLoginPage() {
         setBusy(false);
         return;
       }
-      router.push('/tools/import-checklist');
+      router.push('/tools/client-data-check');
       router.refresh();
     } catch {
       setError('The server could not be reached');
@@ -36,7 +36,7 @@ export default function ChecklistLoginPage() {
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-4 py-12 sm:px-6">
       <div className="rounded-2xl border border-line bg-white p-8 shadow-[8px_8px_0_#0E4D3A]">
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Import Checklist</p>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Client Data Check</p>
         <h1 className="display text-4xl text-ink">Sign in</h1>
         <p className="mt-2 text-sm text-mute">
           Use the user ID and password issued for your trade-finance group.

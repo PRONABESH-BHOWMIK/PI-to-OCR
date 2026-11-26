@@ -44,7 +44,7 @@ export default function ImportChecklistPage() {
   const load = useCallback(async () => {
     const response = await fetch('/api/checklist/data', { cache: 'no-store' });
     if (response.status === 401) {
-      router.replace('/tools/import-checklist/login');
+      router.replace('/tools/client-data-check/login');
       return;
     }
     if (!response.ok) {
@@ -63,12 +63,12 @@ export default function ImportChecklistPage() {
       try {
         const me = await fetch('/api/checklist/me', { cache: 'no-store' });
         if (!me.ok) {
-          router.replace('/tools/import-checklist/login');
+          router.replace('/tools/client-data-check/login');
           return;
         }
         await load();
       } catch {
-        router.replace('/tools/import-checklist/login');
+        router.replace('/tools/client-data-check/login');
       }
     })();
   }, [load, router]);
@@ -165,7 +165,7 @@ export default function ImportChecklistPage() {
 
   const signOut = async () => {
     await fetch('/api/checklist/logout', { method: 'POST' });
-    router.replace('/tools/import-checklist/login');
+    router.replace('/tools/client-data-check/login');
     router.refresh();
   };
 
@@ -269,11 +269,11 @@ export default function ImportChecklistPage() {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Import Checklist</p>
-          <h1 className="display text-5xl text-ink">Import client documents</h1>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Client Data Check</p>
+          <h1 className="display text-5xl text-ink">Client data check</h1>
           <p className="mt-3 max-w-2xl text-mute">
-            Track the required documents for each import client by financial year. Current documents show light
-            green; expired or outdated ones show light red. Signed in as <span className="font-semibold text-ink">{username}</span>.
+            Check and update the required documents of each import client by financial year. Current documents show
+            light green; expired or outdated ones show light red. Signed in as <span className="font-semibold text-ink">{username}</span>.
           </p>
         </div>
         <button
