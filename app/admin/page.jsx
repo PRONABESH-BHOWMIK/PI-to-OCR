@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 function fmtDate(iso) {
@@ -119,6 +120,18 @@ export default function AdminDashboardPage() {
           Sign out
         </button>
       </div>
+
+      <nav aria-label="Admin" className="mt-6 flex flex-wrap gap-3">
+        <Link
+          href="/admin/checklist"
+          className="rounded-lg border border-bottle/40 bg-bottle/5 px-4 py-2 text-sm font-semibold text-bottle transition hover:border-bottle hover:bg-bottle/10"
+        >
+          Client data check management
+        </Link>
+        <span className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-mute">
+          Usage dashboard
+        </span>
+      </nav>
 
       {error && (
         <p role="alert" className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
