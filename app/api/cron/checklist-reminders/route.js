@@ -13,7 +13,7 @@
 // the x-vercel-cron-secret header.
 import { NextResponse } from 'next/server';
 import { dbEnabled, query } from '@/lib/db';
-import { sendEmail } from '@/lib/resend';
+import { sendEmail } from '@/lib/mailer';
 import { buildReminderEmail, expiredItems, todayIso } from '@/lib/checklist-core';
 
 function authorized(request) {
