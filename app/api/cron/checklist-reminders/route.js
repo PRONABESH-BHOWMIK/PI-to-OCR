@@ -9,8 +9,9 @@
 //   - no officer email is on file,
 //   - a reminder was already sent in the current week.
 //
-// Protected by Vercel Cron: the request must carry the CRON_SECRET value in
-// the x-vercel-cron-secret header.
+// Protected by Vercel Schedules: the request must carry the CRON_SECRET value.
+// Vercel sends it as `Authorization: Bearer <CRON_SECRET>` (the x-vercel-cron-
+// secret header is also accepted for manual testing).
 import { NextResponse } from 'next/server';
 import { dbEnabled, query } from '@/lib/db';
 import { sendEmail } from '@/lib/mailer';
@@ -19,8 +20,9 @@ import { buildReminderEmail, expiredItems, todayIso } from '@/lib/checklist-core
 function authorized(request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  const header = request.headers.get('x-vercel-cron-secret');
-  return header && header === secret;
+  if (request.headers.get('authorization') === `Bearer ${secret}`) return true;
+  // Fallback for manual testing with the legacy header.
+  return request.headers.get('x-vercel-cron-secret') === secret;
 }
 
 export async function GET(request) {
