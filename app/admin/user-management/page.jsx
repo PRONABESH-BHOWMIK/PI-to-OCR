@@ -7,11 +7,6 @@ function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
-function todayIso(offsetDays = 0) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
 
 const STATUS_STYLES = {
   active: 'border-green-200 bg-green-50 text-green-700',
@@ -24,14 +19,12 @@ export default function AdminChecklistPage() {
   const [username, setUsername] = useState(null);
   const [users, setUsers] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
-  const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   const [newUser, setNewUser] = useState({ username: '', password: '' });
   const [newType, setNewType] = useState({ name: '', kind: 'dated' });
-  const [range, setRange] = useState({ start: todayIso(-29), end: todayIso(0) });
 
   const loadUsers = useCallback(async () => {
     const r = await fetch('/api/admin/checklist/users', { cache: 'no-store' });
@@ -44,19 +37,13 @@ export default function AdminChecklistPage() {
     if (r.ok) setDocumentTypes((await r.json()).documentTypes || []);
   }, []);
 
-  const loadStats = useCallback(async (range) => {
-    const r = await fetch(`/api/admin/checklist/stats?start=${range.start}&end=${range.end}`, { cache: 'no-store' });
-    if (r.status === 401) { router.replace('/admin/login'); return; }
-    if (r.ok) setStats(await r.json());
-  }, [router]);
-
   useEffect(() => {
     (async () => {
       try {
         const me = await fetch('/api/admin/me', { cache: 'no-store' });
         if (!me.ok) { router.replace('/admin/login'); return; }
         setUsername((await me.json()).username);
-        await Promise.all([loadUsers(), loadTypes(), loadStats(range)]);
+        await Promise.all([loadUsers(), loadTypes()]);
       } catch {
         router.replace('/admin/login');
       }
@@ -140,22 +127,30 @@ export default function AdminChecklistPage() {
     return <div className="mx-auto max-w-6xl px-4 py-24 text-mute sm:px-6">Checking your session…</div>;
   }
 
-  const maxLogin = Math.max(1, ...(stats?.daily ?? []).map((d) => d.logins));
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-bottle">Admin</p>
-          <h1 className="display text-5xl text-ink">Client data check management</h1>
+          <h1 className="display text-5xl text-ink">User Management</h1>
           <p className="mt-3 max-w-2xl text-mute">
-            Manage tool user IDs and document types, and view daily checklist activity. Admins cannot see client data.
+            Manage the Client Data Check tool: create, pause, deactivate and delete tool user IDs, reset
+            passwords, and manage document types. Admins cannot see client data.
           </p>
         </div>
-        <Link href="/admin" className="rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-semibold text-mute transition hover:border-bottle hover:text-bottle">
-          ← Back to dashboard
-        </Link>
       </div>
+
+      <nav aria-label="Admin" className="mt-6 flex flex-wrap gap-3">
+        <Link
+          href="/admin"
+          className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-mute transition hover:border-bottle hover:text-bottle"
+        >
+          Usage Dashboard
+        </Link>
+        <span className="rounded-lg border border-bottle/40 bg-bottle/5 px-4 py-2 text-sm font-semibold text-bottle">
+          User Management
+        </span>
+      </nav>
 
       {error && <p role="alert" className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {notice && <p className="mt-6 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</p>}
@@ -218,7 +213,7 @@ export default function AdminChecklistPage() {
         </div>
       </section>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8">
         {/* Document types */}
         <section className="rounded-xl border border-line bg-white p-6">
           <h2 className="display text-2xl text-ink">Document types</h2>
@@ -247,61 +242,6 @@ export default function AdminChecklistPage() {
               </li>
             ))}
           </ul>
-        </section>
-
-        {/* Activity */}
-        <section className="rounded-xl border border-line bg-white p-6">
-          <h2 className="display text-2xl text-ink">Daily activity</h2>
-          {stats && (
-            <>
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Logins (range)</p>
-                  <p className="display mt-1 text-3xl text-ink">{stats.totals.logins}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Usage (range)</p>
-                  <p className="display mt-1 text-3xl text-ink">{stats.totals.usage}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Tool users</p>
-                  <p className="display mt-1 text-3xl text-ink">{stats.users.n}</p>
-                  <p className="text-xs text-mute">{stats.users.active} active</p>
-                </div>
-              </div>
-              <form onSubmit={(e) => { e.preventDefault(); loadStats(range); }} className="mt-5 flex items-end gap-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-mute">From</span>
-                  <input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} className="rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-bottle" />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-mute">To</span>
-                  <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} className="rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-bottle" />
-                </label>
-                <button type="submit" disabled={busy} className="rounded-lg bg-bottle px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-bottle-dark disabled:opacity-60">Apply</button>
-              </form>
-              <div className="mt-5 flex h-28 items-end gap-1.5">
-                {stats.daily.map((d) => (
-                  <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="w-full rounded-t bg-bottle/80" style={{ height: `${Math.max(4, (d.logins / maxLogin) * 100)}%` }} title={`${d.date}: ${d.logins} logins, ${d.usage} uses`} />
-                    <span className="text-[10px] text-mute">{d.date.slice(5)}</span>
-                  </div>
-                ))}
-              </div>
-              <details className="mt-4">
-                <summary className="cursor-pointer text-xs font-semibold text-bottle">Logins by IP (per day)</summary>
-                <div className="mt-2 max-h-48 overflow-y-auto">
-                  {stats.daily.filter((d) => d.logins > 0).map((d) => (
-                    <div key={d.date} className="border-b border-line/60 py-1.5 text-xs">
-                      <span className="font-semibold text-ink">{d.date}</span>
-                      <span className="text-mute"> · {d.logins} login(s) · {d.loginIps.join(', ') || 'no IP'}</span>
-                    </div>
-                  ))}
-                  {stats.daily.every((d) => d.logins === 0) && <p className="text-sm text-mute">No logins in this range.</p>}
-                </div>
-              </details>
-            </>
-          )}
         </section>
       </div>
     </div>

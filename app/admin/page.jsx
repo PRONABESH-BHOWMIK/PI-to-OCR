@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 function fmtDate(iso) {
@@ -27,6 +28,7 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [username, setUsername] = useState(null);
   const [stats, setStats] = useState(null);
+  const [checklistStats, setChecklistStats] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [start, setStart] = useState(todayIso(-29));
@@ -55,6 +57,19 @@ export default function AdminDashboardPage() {
     }
   }, [router]);
 
+  const loadChecklistStats = useCallback(async (range) => {
+    try {
+      const response = await fetch(`/api/admin/checklist/stats?start=${range.start}&end=${range.end}`, { cache: 'no-store' });
+      if (response.status === 401) {
+        router.replace('/admin/login');
+        return;
+      }
+      if (response.ok) setChecklistStats(await response.json());
+    } catch {
+      // Non-critical: the checklist section simply stays empty.
+    }
+  }, [router]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -68,6 +83,7 @@ export default function AdminDashboardPage() {
         if (cancelled) return;
         setUsername(me.username);
         await load({ start, end });
+        await loadChecklistStats({ start, end });
       } catch {
         router.replace('/admin/login');
       }
@@ -82,6 +98,7 @@ export default function AdminDashboardPage() {
   const applyRange = (event) => {
     event.preventDefault();
     load({ start, end });
+    loadChecklistStats({ start, end });
   };
 
   const logout = async () => {
@@ -119,6 +136,18 @@ export default function AdminDashboardPage() {
           Sign out
         </button>
       </div>
+
+      <nav aria-label="Admin" className="mt-6 flex flex-wrap gap-3">
+        <span className="rounded-lg border border-bottle/40 bg-bottle/5 px-4 py-2 text-sm font-semibold text-bottle">
+          Usage Dashboard
+        </span>
+        <Link
+          href="/admin/user-management"
+          className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-mute transition hover:border-bottle hover:text-bottle"
+        >
+          User Management
+        </Link>
+      </nav>
 
       {error && (
         <p role="alert" className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -288,6 +317,74 @@ export default function AdminDashboardPage() {
               </table>
             </div>
           </section>
+
+          {/* Client Data Check activity (checklist stats) */}
+          {checklistStats && (
+            <section className="mt-6 rounded-xl border border-line bg-white p-6">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="display text-2xl text-ink">Client Data Check activity</h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Daily tool logins (with IP addresses) and tool usage, {checklistStats.range.start} – {checklistStats.range.end}.
+                  </p>
+                </div>
+                <Link
+                  href="/admin/user-management"
+                  className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-mute transition hover:border-bottle hover:text-bottle"
+                >
+                  Manage users
+                </Link>
+              </div>
+
+              <div className="mt-5 grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Logins (range)</p>
+                  <p className="display mt-1 text-3xl text-ink">{checklistStats.totals.logins}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Usage (range)</p>
+                  <p className="display mt-1 text-3xl text-ink">{checklistStats.totals.usage}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-mute">Tool users</p>
+                  <p className="display mt-1 text-3xl text-ink">{checklistStats.users.n}</p>
+                  <p className="text-xs text-mute">{checklistStats.users.active} active</p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex h-28 items-end gap-1.5">
+                {checklistStats.daily.length === 0 && <p className="text-sm text-mute">No activity in this range.</p>}
+                {checklistStats.daily.map((d) => {
+                  const max = Math.max(1, ...checklistStats.daily.map((x) => x.logins));
+                  return (
+                    <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-t bg-bottle/80"
+                        style={{ height: `${Math.max(4, (d.logins / max) * 100)}%` }}
+                        title={`${d.date}: ${d.logins} logins, ${d.usage} uses`}
+                      />
+                      <span className="text-[10px] text-mute">{d.date.slice(5)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs font-semibold text-bottle">Logins by IP (per day)</summary>
+                <div className="mt-2 max-h-48 overflow-y-auto">
+                  {checklistStats.daily.filter((d) => d.logins > 0).length === 0 && (
+                    <p className="text-sm text-mute">No logins in this range.</p>
+                  )}
+                  {checklistStats.daily.filter((d) => d.logins > 0).map((d) => (
+                    <div key={d.date} className="border-b border-line/60 py-1.5 text-xs">
+                      <span className="font-semibold text-ink">{d.date}</span>
+                      <span className="text-mute"> · {d.logins} login(s) · {d.loginIps.join(', ') || 'no IP'}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </section>
+          )}
         </>
       )}
     </div>

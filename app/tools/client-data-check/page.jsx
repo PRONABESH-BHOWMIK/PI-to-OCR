@@ -35,10 +35,12 @@ export default function ImportChecklistPage() {
   const [draft, setDraft] = useState(null); // working copy of the selected client
   const [newClient, setNewClient] = useState({ name: '', ucic: '', ircNumber: '' });
   const [newFy, setNewFy] = useState('');
+  const [view, setView] = useState('clientwise'); // 'clientwise' | 'overall'
   const [duplicateMsg, setDuplicateMsg] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reauth, setReauth] = useState({ open: false, username: '', password: '', error: '', busy: false });
   const today = todayIso();
 
   const load = useCallback(async () => {
@@ -151,16 +153,43 @@ export default function ImportChecklistPage() {
   };
 
   const removeClient = async () => {
-    if (!draft || !window.confirm(`Delete ${draft.name} and all its data? This cannot be undone.`)) return;
-    const response = await fetch(`/api/checklist/client/${draft.id}`, { method: 'DELETE' });
-    if (response.ok) {
-      setSelectedId(null);
-      setDraft(null);
-      setNotice('Client deleted.');
-      await load();
-    } else {
-      setError('Could not delete client');
+    if (!draft) return;
+    setReauth({ open: true, username: '', password: '', error: '', busy: false });
+  };
+
+  const confirmDelete = async () => {
+    if (!draft) return;
+    setReauth((r) => ({ ...r, busy: true, error: '' }));
+    try {
+      const check = await fetch('/api/checklist/reauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: reauth.username, password: reauth.password }),
+      });
+      if (!check.ok) {
+        const data = await check.json().catch(() => ({}));
+        setReauth((r) => ({ ...r, busy: false, error: data.error || 'Incorrect user ID or password' }));
+        return;
+      }
+      const response = await fetch(`/api/checklist/client/${draft.id}`, { method: 'DELETE' });
+      if (response.ok) {
+        const deletedName = draft.name;
+        setSelectedId(null);
+        setDraft(null);
+        setReauth({ open: false, username: '', password: '', error: '', busy: false });
+        setNotice(`${deletedName} deleted.`);
+        await load();
+      } else {
+        setReauth((r) => ({ ...r, busy: false, error: 'Could not delete client' }));
+      }
+    } catch {
+      setReauth((r) => ({ ...r, busy: false, error: 'The server could not be reached' }));
     }
+  };
+
+  const closeReauth = () => {
+    if (reauth.busy) return;
+    setReauth({ open: false, username: '', password: '', error: '', busy: false });
   };
 
   const signOut = async () => {
@@ -285,6 +314,42 @@ export default function ImportChecklistPage() {
         </button>
       </div>
 
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div
+          role="tablist"
+          aria-label="Data view"
+          className="inline-flex rounded-lg border border-line bg-white p-1"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'clientwise'}
+            onClick={() => setView('clientwise')}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition ${
+              view === 'clientwise' ? 'bg-bottle text-white' : 'text-mute hover:text-ink'
+            }`}
+          >
+            Client wise
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'overall'}
+            onClick={() => setView('overall')}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition ${
+              view === 'overall' ? 'bg-bottle text-white' : 'text-mute hover:text-ink'
+            }`}
+          >
+            Overall view
+          </button>
+        </div>
+        <p className="text-xs text-mute">
+          {view === 'overall'
+            ? 'Read-only overview of every client. Edit a client from its Client wise record.'
+            : 'Select a client to view and edit its full checklist and data.'}
+        </p>
+      </div>
+
       {error && (
         <p role="alert" className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -316,6 +381,14 @@ export default function ImportChecklistPage() {
         </button>
       </form>
 
+      {view === 'overall' ? (
+        <OverallView
+          clients={clients}
+          documentTypes={documentTypes}
+          today={today}
+          onOpenClient={(c) => { setView('clientwise'); openClient(c); }}
+        />
+      ) : (
       <div className="mt-10 grid gap-8 lg:grid-cols-[320px_1fr]">
         {/* Client list */}
         <section>
@@ -468,6 +541,71 @@ export default function ImportChecklistPage() {
           )}
         </section>
       </div>
+      )}
+
+      {reauth.open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+          onClick={closeReauth}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="display text-2xl text-ink">Confirm delete</h2>
+            <p className="mt-3 text-sm text-mute">
+              Deleting a client removes all of its financial-year records and data. This cannot be undone.
+              Please re-enter your user ID and password to confirm.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-mute">User ID</span>
+                <input
+                  autoFocus
+                  value={reauth.username}
+                  onChange={(e) => setReauth((r) => ({ ...r, username: e.target.value }))}
+                  className={inputCls}
+                  autoComplete="username"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-mute">Password</span>
+                <input
+                  type="password"
+                  value={reauth.password}
+                  onChange={(e) => setReauth((r) => ({ ...r, password: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') confirmDelete(); }}
+                  className={inputCls}
+                  autoComplete="current-password"
+                />
+              </label>
+              {reauth.error && (
+                <p role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {reauth.error}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button type="button" onClick={closeReauth} disabled={reauth.busy} className="rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-semibold text-mute transition hover:border-bottle hover:text-bottle disabled:opacity-60">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={reauth.busy || !reauth.username.trim() || !reauth.password}
+                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {reauth.busy ? 'Deleting…' : 'Delete client'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -634,6 +772,133 @@ function FyEditor({
         <span className="mb-1.5 block text-sm font-semibold text-ink">User's special note</span>
         <textarea value={fy.note} onChange={(e) => onUpdateFy(fyIndex, { note: e.target.value })} rows={2} className={inputCls} />
       </label>
+    </div>
+  );
+}
+
+/**
+ * Overall view: a read-only table of every client for the signed-in user.
+ * Shows all data columns in the original field sequence; only expired
+ * document cells are highlighted light red. Clicking a row opens that
+ * client in the (editable) Client wise view.
+ */
+function OverallView({ clients, documentTypes, today, onOpenClient }) {
+  const cellCls = 'px-3 py-2 text-xs align-top';
+  const neutral = 'border-line bg-white text-ink';
+  const valid = 'border-green-200 bg-green-50 text-green-800';
+  const expired = 'border-red-200 bg-red-50 text-red-700';
+  const uncollected = 'border-line bg-white text-mute';
+
+  const fmtMgt = (fy) => {
+    if (!fy) return '—';
+    if (fy.mgtFeeChoice === 'others') return `${fy.mgtFeeChoice}: ${fy.mgtFeeValue || ''}`;
+    return fy.mgtFeeChoice || '—';
+  };
+  const fmtSwift = (fy) => {
+    if (!fy) return '—';
+    if (fy.swiftChoice === 'yes') return `Yes: ${fy.swiftValue || ''}`;
+    if (fy.swiftChoice === 'no') return 'No';
+    return '—';
+  };
+  const joinOrDash = (arr, key) => {
+    const vals = (arr || []).map((x) => x[key]).filter(Boolean);
+    return vals.length ? vals.join(', ') : '—';
+  };
+
+  return (
+    <div className="mt-10">
+      <div className="rounded-xl border border-line bg-white p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="display text-2xl text-ink">Overall view — all clients</h2>
+            <p className="mt-1 text-sm text-mute">
+              Read-only overview of every client. Expired documents show light red. Open a client to edit it.
+            </p>
+          </div>
+          {clients.length > 0 && (
+            <span className="rounded-full border border-line bg-paper px-3 py-1 text-xs font-semibold text-mute">
+              {clients.length} client{clients.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {clients.length === 0 ? (
+          <p className="mt-6 text-sm text-mute">No clients yet. Add one above.</p>
+        ) : (
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[1100px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs font-bold uppercase tracking-wider text-mute">
+                  <th className="px-3 py-2">Client</th>
+                  <th className="px-3 py-2">UCIC</th>
+                  <th className="px-3 py-2">IRC</th>
+                  <th className="px-3 py-2">FY</th>
+                  <th className="px-3 py-2">LC commission</th>
+                  <th className="px-3 py-2">VAT</th>
+                  <th className="px-3 py-2">Mgt fee</th>
+                  <th className="px-3 py-2">SWIFT</th>
+                  <th className="px-3 py-2">Facility</th>
+                  <th className="px-3 py-2">Officer</th>
+                  <th className="px-3 py-2">Note</th>
+                  {documentTypes.map((d) => (
+                    <th key={d.id} className="px-3 py-2 whitespace-nowrap">{d.name}</th>
+                  ))}
+                  <th className="px-3 py-2 text-right">Expired</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((c) => {
+                  const fys = [...c.fys].sort((a, b) => (a.fyEndDate < b.fyEndDate ? 1 : -1));
+                  const fy = fys[0] || null;
+                  const items = fy?.items || [];
+                  let expiredCount = 0;
+                  const docCells = documentTypes.map((d) => {
+                    const item = items.find((i) => i.documentTypeId === d.id || i.documentTypeName === d.name);
+                    const { state } = itemStatus(item, { kind: d.kind, fyEndDate: fy?.fyEndDate, today });
+                    if (state === 'expired') expiredCount += 1;
+                    const cls = state === 'expired' ? expired : state === 'valid' ? valid : uncollected;
+                    const label = state === 'expired' ? 'Expired' : state === 'valid' ? 'Current' : 'Not collected';
+                    return (
+                      <td key={d.id} className={`${cellCls} ${cls} whitespace-nowrap font-semibold`}>
+                        {label}
+                      </td>
+                    );
+                  });
+                  return (
+                    <tr key={c.id} className="border-b border-line/60">
+                      <td className={`${cellCls} font-semibold text-ink`}>{c.name}</td>
+                      <td className={`${cellCls} ${neutral}`}>{c.ucic}</td>
+                      <td className={`${cellCls} ${neutral}`}>{c.ircNumber || '—'}</td>
+                      <td className={`${cellCls} ${neutral} whitespace-nowrap`}>{fy ? fy.fyLabel : '—'}</td>
+                      <td className={`${cellCls} ${neutral}`}>{fy?.commissionRate || '—'}</td>
+                      <td className={`${cellCls} ${neutral}`}>{fy?.vat || '—'}</td>
+                      <td className={`${cellCls} ${neutral}`}>{fmtMgt(fy)}</td>
+                      <td className={`${cellCls} ${neutral}`}>{fmtSwift(fy)}</td>
+                      <td className={`${cellCls} ${neutral}`}>{joinOrDash(fy?.facilities, 'facilityNumber')}</td>
+                      <td className={`${cellCls} ${neutral}`}>{joinOrDash(fy?.officers, 'email')}</td>
+                      <td className={`${cellCls} ${neutral} max-w-[160px]`}>{fy?.note || '—'}</td>
+                      {docCells}
+                      <td className={`${cellCls} text-right whitespace-nowrap ${expiredCount > 0 ? 'font-bold text-red-700' : 'text-mute'}`}>
+                        {expiredCount}
+                      </td>
+                      <td className={`${cellCls} text-right`}>
+                        <button
+                          type="button"
+                          onClick={() => onOpenClient(c)}
+                          className="rounded-lg border border-bottle bg-bottle/5 px-3 py-1 text-xs font-semibold text-bottle transition hover:bg-bottle/10"
+                        >
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
