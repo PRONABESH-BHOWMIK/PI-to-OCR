@@ -12,6 +12,7 @@ const tools = [
   { name: 'AutoMailer', description: 'Send routine trade finance emails from saved templates.', category: 'Automation', status: 'coming' },
   { name: 'PII entry helper', description: 'Speed up entering customer identity details from source documents.', category: 'Automation', status: 'coming' },
   { name: 'HS Code Finder', description: 'Look up any HS code and see its 2026-27 tariff details.', category: 'Lookup', status: 'live', href: '/tools/hs-code-finder' },
+  { name: 'Client Data Check', description: 'Check and update the required documents of each import client by financial year, with automatic expiry reminders.', category: 'Lookup', status: 'live', href: '/tools/client-data-check' },
   { name: 'Bank SWIFT/BIC Code Finder', description: "Look up a bank's SWIFT/BIC code by name, city or country.", category: 'Lookup', status: 'coming' },
   { name: 'INCOTERMS Calculator', description: 'Work out costs and responsibilities under INCOTERMS 2020.', category: 'Calculators', status: 'coming' },
   { name: 'Cost Calculator', description: 'Calculate bank charges and trade finance costs from one place.', category: 'Calculators', status: 'live', href: '/tools/cost-calculator', subtools: ['LC Issue Cost Calculator'] },

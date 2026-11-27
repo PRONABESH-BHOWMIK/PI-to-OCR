@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "schedules": {
+    "checklist-reminders": {
+      "schedule": "0 9 * * 0",
+      "path": "/api/cron/checklist-reminders",
+      "requestMethod": "GET"
+    }
+  }
+}
